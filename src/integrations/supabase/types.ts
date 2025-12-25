@@ -320,6 +320,9 @@ export type Database = {
           date_of_birth: string | null
           department: string | null
           designation: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relationship: string | null
           employee_id: string
           employment_type: string | null
           id: string
@@ -333,6 +336,9 @@ export type Database = {
           date_of_birth?: string | null
           department?: string | null
           designation?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
           employee_id: string
           employment_type?: string | null
           id?: string
@@ -346,6 +352,9 @@ export type Database = {
           date_of_birth?: string | null
           department?: string | null
           designation?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
           employee_id?: string
           employment_type?: string | null
           id?: string
