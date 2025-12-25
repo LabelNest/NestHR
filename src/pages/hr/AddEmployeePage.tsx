@@ -1,43 +1,194 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { employees } from '@/data/mockData';
-import { UserPlus, Calendar } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { UserPlus, CalendarIcon, User, Briefcase, MapPin, FileText, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+interface Manager {
+  id: string;
+  full_name: string;
+  role: string;
+}
 
 const AddEmployeePage = () => {
-  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { employee: currentEmployee } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const [emailError, setEmailError] = useState('');
+
   const [formData, setFormData] = useState({
-    name: '',
+    fullName: '',
     email: '',
-    role: '',
+    phone: '',
     department: '',
+    designation: '',
+    location: '',
+    employmentType: '',
+    dateOfBirth: undefined as Date | undefined,
+    joiningDate: undefined as Date | undefined,
+    role: '',
     managerId: '',
-    startDate: '',
+    address: '',
+    status: true, // true = Active
   });
 
-  const managers = employees.filter(e => 
-    e.role.includes('Manager') || e.role.includes('Lead') || e.role.includes('VP')
-  );
+  // Fetch managers/admins for dropdown
+  useEffect(() => {
+    const fetchManagers = async () => {
+      if (!currentEmployee?.org_id) return;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Employee Added",
-      description: `${formData.name} has been added to the system.`,
-    });
-    setFormData({
-      name: '',
-      email: '',
-      role: '',
-      department: '',
-      managerId: '',
-      startDate: '',
-    });
+      const { data } = await supabase
+        .from('hr_employees')
+        .select('id, full_name, role')
+        .eq('org_id', currentEmployee.org_id)
+        .in('role', ['Admin', 'Manager'])
+        .eq('status', 'Active')
+        .order('full_name');
+
+      setManagers(data || []);
+    };
+
+    fetchManagers();
+  }, [currentEmployee?.org_id]);
+
+  const validateEmail = async (email: string): Promise<boolean> => {
+    if (!email) return false;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailError('Invalid email format');
+      return false;
+    }
+
+    // Check if email already exists
+    const { data } = await supabase
+      .from('hr_employees')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+
+    if (data) {
+      setEmailError('Email already exists');
+      return false;
+    }
+
+    setEmailError('');
+    return true;
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!currentEmployee?.org_id) {
+      toast.error('Organization not found');
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.fullName || !formData.email || !formData.department || 
+        !formData.designation || !formData.employmentType || !formData.joiningDate || !formData.role) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    // Validate email
+    const isEmailValid = await validateEmail(formData.email);
+    if (!isEmailValid) {
+      toast.error(emailError || 'Invalid email');
+      return;
+    }
+
+    // Validate joining date not in future
+    if (formData.joiningDate && formData.joiningDate > new Date()) {
+      toast.error('Joining date cannot be in the future');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Step 1: Insert into hr_employees
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('hr_employees')
+        .insert({
+          org_id: currentEmployee.org_id,
+          full_name: formData.fullName.trim(),
+          email: formData.email.toLowerCase().trim(),
+          role: formData.role,
+          manager_id: formData.managerId || null,
+          status: formData.status ? 'Active' : 'Inactive',
+          joining_date: formData.joiningDate ? format(formData.joiningDate, 'yyyy-MM-dd') : null,
+          user_id: null, // Will be set when user creates auth account
+        })
+        .select('id, employee_code')
+        .single();
+
+      if (employeeError) {
+        if (employeeError.code === '23505') {
+          toast.error('An employee with this email already exists');
+        } else {
+          toast.error('Failed to create employee: ' + employeeError.message);
+        }
+        setSaving(false);
+        return;
+      }
+
+      // Step 2: Insert into hr_employee_details
+      const { error: detailsError } = await supabase
+        .from('hr_employee_details')
+        .insert({
+          employee_id: employeeData.id,
+          phone: formData.phone?.trim() || null,
+          department: formData.department,
+          designation: formData.designation.trim(),
+          location: formData.location?.trim() || null,
+          employment_type: formData.employmentType,
+          date_of_birth: formData.dateOfBirth ? format(formData.dateOfBirth, 'yyyy-MM-dd') : null,
+          address: formData.address?.trim() || null,
+        });
+
+      if (detailsError) {
+        // Rollback: delete the employee record
+        await supabase.from('hr_employees').delete().eq('id', employeeData.id);
+        toast.error('Failed to create employee details: ' + detailsError.message);
+        setSaving(false);
+        return;
+      }
+
+      toast.success(`Employee added successfully! Employee Code: ${employeeData.employee_code || 'Generated'}`);
+      navigate('/hr/employee-directory');
+    } catch (error: any) {
+      toast.error('An error occurred: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateField = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'email') setEmailError('');
+  };
+
+  const SectionHeader = ({ icon: Icon, title }: { icon: any; title: string }) => (
+    <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground mb-4">
+      <Icon className="w-4 h-4" />
+      <span>{title}</span>
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -46,114 +197,266 @@ const AddEmployeePage = () => {
         <p className="text-muted-foreground">Create a new employee record</p>
       </div>
 
-      <Card className="max-w-2xl p-6 glass-card">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="max-w-4xl p-6 glass-card">
+        <form onSubmit={handleSubmit} className="space-y-8">
           <div className="flex items-center gap-3 pb-4 border-b border-border">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
               <UserPlus className="w-6 h-6 text-primary" />
             </div>
             <div>
               <h2 className="font-semibold text-foreground">New Employee Details</h2>
-              <p className="text-sm text-muted-foreground">Fill in the information below</p>
+              <p className="text-sm text-muted-foreground">Fill in the information below to add a new employee</p>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name *</Label>
-              <Input 
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="John Doe"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address *</Label>
-              <Input 
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="john.doe@labelnest.com"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="role">Role *</Label>
-              <Input 
-                id="role"
-                value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                placeholder="Software Engineer"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="department">Department *</Label>
-              <Select 
-                value={formData.department} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Engineering">Engineering</SelectItem>
-                  <SelectItem value="Design">Design</SelectItem>
-                  <SelectItem value="Human Resources">Human Resources</SelectItem>
-                  <SelectItem value="Marketing">Marketing</SelectItem>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="manager">Manager</Label>
-              <Select 
-                value={formData.managerId} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, managerId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select manager" />
-                </SelectTrigger>
-                <SelectContent>
-                  {managers.map((manager) => (
-                    <SelectItem key={manager.id} value={manager.id}>
-                      {manager.name} ({manager.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date *</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          {/* Basic Info Section */}
+          <div>
+            <SectionHeader icon={User} title="Basic Information" />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name *</Label>
                 <Input 
-                  id="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                  className="pl-9"
+                  id="fullName"
+                  value={formData.fullName}
+                  onChange={(e) => updateField('fullName', e.target.value)}
+                  placeholder="John Doe"
                   required
+                  maxLength={100}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address *</Label>
+                <Input 
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => updateField('email', e.target.value)}
+                  onBlur={() => formData.email && validateEmail(formData.email)}
+                  placeholder="john.doe@company.com"
+                  required
+                  className={emailError ? 'border-destructive' : ''}
+                />
+                {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input 
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => updateField('phone', e.target.value)}
+                  placeholder="+91 9876543210"
+                  maxLength={20}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Date of Birth</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.dateOfBirth && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.dateOfBirth}
+                      onSelect={(date) => updateField('dateOfBirth', date)}
+                      disabled={(date) => date > new Date() || date < new Date("1940-01-01")}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Employee
+          <Separator />
+
+          {/* Employment Details Section */}
+          <div>
+            <SectionHeader icon={Briefcase} title="Employment Details" />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Role *</Label>
+                <Select value={formData.role} onValueChange={(value) => updateField('role', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Admin">Admin</SelectItem>
+                    <SelectItem value="Manager">Manager</SelectItem>
+                    <SelectItem value="Employee">Employee</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Department *</Label>
+                <Select value={formData.department} onValueChange={(value) => updateField('department', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Engineering">Engineering</SelectItem>
+                    <SelectItem value="Design">Design</SelectItem>
+                    <SelectItem value="Human Resources">Human Resources</SelectItem>
+                    <SelectItem value="Marketing">Marketing</SelectItem>
+                    <SelectItem value="Sales">Sales</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="Operations">Operations</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="designation">Designation *</Label>
+                <Input 
+                  id="designation"
+                  value={formData.designation}
+                  onChange={(e) => updateField('designation', e.target.value)}
+                  placeholder="Software Engineer"
+                  required
+                  maxLength={100}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Employment Type *</Label>
+                <Select value={formData.employmentType} onValueChange={(value) => updateField('employmentType', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Full-time">Full-time</SelectItem>
+                    <SelectItem value="Part-time">Part-time</SelectItem>
+                    <SelectItem value="Contract">Contract</SelectItem>
+                    <SelectItem value="Intern">Intern</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Reporting Manager {formData.role !== 'Admin' && '*'}</Label>
+                <Select value={formData.managerId} onValueChange={(value) => updateField('managerId', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {managers.map((manager) => (
+                      <SelectItem key={manager.id} value={manager.id}>
+                        {manager.full_name} ({manager.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Joining Date *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.joiningDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.joiningDate ? format(formData.joiningDate, "PPP") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.joiningDate}
+                      onSelect={(date) => updateField('joiningDate', date)}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Work Location Section */}
+          <div>
+            <SectionHeader icon={MapPin} title="Work Location" />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="location">Office Location</Label>
+                <Input 
+                  id="location"
+                  value={formData.location}
+                  onChange={(e) => updateField('location', e.target.value)}
+                  placeholder="Bangalore, India"
+                  maxLength={100}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <div className="flex items-center gap-3 h-10">
+                  <Switch 
+                    checked={formData.status}
+                    onCheckedChange={(checked) => updateField('status', checked)}
+                  />
+                  <span className={formData.status ? 'text-green-600' : 'text-muted-foreground'}>
+                    {formData.status ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Personal Info Section */}
+          <div>
+            <SectionHeader icon={FileText} title="Personal Information" />
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label htmlFor="address">Address</Label>
+                <span className="text-xs text-muted-foreground">{formData.address.length}/500</span>
+              </div>
+              <Textarea 
+                id="address"
+                value={formData.address}
+                onChange={(e) => updateField('address', e.target.value)}
+                placeholder="Enter full address..."
+                rows={3}
+                maxLength={500}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-border">
+            <Button type="submit" className="flex-1" disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Adding Employee...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add Employee
+                </>
+              )}
             </Button>
-            <Button type="button" variant="outline">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate('/hr/employee-directory')}
+              disabled={saving}
+            >
               Cancel
             </Button>
           </div>
