@@ -18,6 +18,7 @@ import {
   UserPlus,
   Upload,
   Shield,
+  Contact,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { title: 'Documents', href: '/app/documents', icon: FileText, roles: ['Admin', 'Manager', 'Employee'] },
   { title: 'Salary', href: '/app/salary', icon: DollarSign, roles: ['Admin', 'Manager', 'Employee'] },
   { title: 'Engagement', href: '/app/engagement', icon: Users, roles: ['Admin', 'Manager', 'Employee'] },
+  { title: 'Contacts', href: '/app/contacts', icon: Contact, roles: ['Admin', 'Manager', 'Employee'] },
   
   // Employee specific
   { title: 'My Leaves', href: '/app/leaves', icon: Calendar, roles: ['Employee'] },
@@ -71,11 +73,11 @@ export const AppSidebar = () => {
 
   // Group items by category
   const commonItems = filteredItems.filter(item => 
-    ['Attendance', 'Efficiency', 'Profile', 'Documents', 'Salary', 'Engagement'].includes(item.title)
+    ['Attendance', 'Efficiency', 'Profile', 'Documents', 'Salary', 'Engagement', 'Contacts'].includes(item.title)
   );
   
   const roleSpecificItems = filteredItems.filter(item => 
-    !['Attendance', 'Efficiency', 'Profile', 'Documents', 'Salary', 'Engagement'].includes(item.title)
+    !['Attendance', 'Efficiency', 'Profile', 'Documents', 'Salary', 'Engagement', 'Contacts'].includes(item.title)
   );
 
   // Get initials from employee name

@@ -21,6 +21,7 @@ import DocumentsPage from "./pages/DocumentsPage";
 import SalaryPage from "./pages/SalaryPage";
 import MyLeavesPage from "./pages/MyLeavesPage";
 import EngagementPage from "./pages/EngagementPage";
+import ContactsPage from "./pages/ContactsPage";
 
 // Manager Pages
 import MyTeamPage from "./pages/manager/MyTeamPage";
@@ -61,6 +62,7 @@ const App = () => (
                 <Route path="salary" element={<SalaryPage />} />
                 <Route path="leaves" element={<MyLeavesPage />} />
                 <Route path="engagement" element={<EngagementPage />} />
+                <Route path="contacts" element={<ContactsPage />} />
               </Route>
             </Route>
             
