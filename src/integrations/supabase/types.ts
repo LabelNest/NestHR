@@ -832,7 +832,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_employee_code: { Args: { org_uuid: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
