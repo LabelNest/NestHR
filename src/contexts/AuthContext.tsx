@@ -62,17 +62,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const fetchEmployee = async (userId: string): Promise<Employee | null> => {
     try {
+      console.log('Fetching employee for user:', userId);
+      
       const { data, error } = await supabase
         .from('hr_employees')
         .select('*')
         .eq('user_id', userId)
-        .single(); // Changed from maybeSingle to single
+        .maybeSingle(); // Changed back to maybeSingle for graceful null handling
 
       if (error) {
         console.error('Error fetching employee:', error);
         return null;
       }
 
+      console.log('Employee data fetched:', data);
       return data as Employee | null;
     } catch (err) {
       console.error('Exception fetching employee:', err);
@@ -86,6 +89,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Initialize session on mount
     const initAuth = async () => {
       try {
+        console.log('Initializing auth...');
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -101,7 +105,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (emp && emp.status === 'Active') {
             setEmployee(emp);
           } else {
-            // Employee not found or inactive - sign out
             console.log('Employee not found or inactive, signing out');
             await supabase.auth.signOut();
             setEmployee(null);
@@ -125,23 +128,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         if (!mounted) return;
 
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          const emp = await fetchEmployee(session.user.id);
-          
-          if (!mounted) return;
-
-          if (emp && emp.status === 'Active') {
-            setEmployee(emp);
-          } else {
-            console.log('Employee not found or inactive after sign in');
-            await supabase.auth.signOut();
-            setEmployee(null);
-          }
-        } else if (event === 'SIGNED_OUT') {
+        // Only handle SIGNED_OUT event here
+        // SIGNED_IN is handled manually in signIn function
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
           setEmployee(null);
+        } else if (event === 'TOKEN_REFRESHED') {
+          setSession(session);
+          setUser(session?.user ?? null);
         }
       }
     );
@@ -154,49 +149,62 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signIn = async (email: string, password: string): Promise<{ error: Error | null; redirectPath?: string }> => {
     try {
+      console.log('Starting sign in process...');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('Sign in response:', { data: !!data, error });
+
       if (error) {
+        console.error('Sign in error:', error);
         return { error: error as Error };
       }
 
       if (!data.user || !data.session) {
+        console.error('No user or session returned');
         return { error: new Error('Login failed') };
       }
+
+      console.log('User signed in, fetching employee data...');
 
       // Fetch employee record
       const emp = await fetchEmployee(data.user.id);
       
+      console.log('Employee fetched:', emp);
+
       if (!emp) {
-        // No employee record - sign out and return error
+        console.error('No employee record found');
         await supabase.auth.signOut();
         return { error: new Error('You are not onboarded. Please contact HR.') };
       }
 
       if (emp.status !== 'Active') {
-        // Inactive employee - sign out and return error
+        console.error('Employee is not active:', emp.status);
         await supabase.auth.signOut();
         return { error: new Error('Your account is inactive. Please contact HR.') };
       }
 
-      // Set employee state immediately
+      // Set all state immediately
+      console.log('Setting employee state...');
       setEmployee(emp);
       setUser(data.user);
       setSession(data.session);
       
       const redirectPath = getRedirectPath(emp.role as AppRole);
+      console.log('Login successful, redirecting to:', redirectPath);
       
       return { error: null, redirectPath };
     } catch (err) {
-      console.error('Sign in error:', err);
+      console.error('Sign in exception:', err);
       return { error: new Error('An unexpected error occurred during login') };
     }
   };
 
   const signOut = async () => {
+    console.log('Signing out...');
     await supabase.auth.signOut();
     setEmployee(null);
     setUser(null);
