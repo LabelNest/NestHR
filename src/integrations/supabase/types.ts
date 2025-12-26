@@ -533,34 +533,46 @@ export type Database = {
       hr_holidays: {
         Row: {
           created_at: string | null
+          created_by: string | null
+          description: string | null
           holiday_date: string
           holiday_name: string
+          holiday_type: string
           id: string
           is_optional: boolean | null
-          org_id: string
+          updated_at: string | null
+          year: number
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
+          description?: string | null
           holiday_date: string
           holiday_name: string
+          holiday_type: string
           id?: string
           is_optional?: boolean | null
-          org_id: string
+          updated_at?: string | null
+          year: number
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
+          description?: string | null
           holiday_date?: string
           holiday_name?: string
+          holiday_type?: string
           id?: string
           is_optional?: boolean | null
-          org_id?: string
+          updated_at?: string | null
+          year?: number
         }
         Relationships: [
           {
-            foreignKeyName: "hr_holidays_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "hr_holidays_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "hr_employees"
             referencedColumns: ["id"]
           },
         ]

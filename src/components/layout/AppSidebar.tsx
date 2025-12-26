@@ -2,23 +2,21 @@ import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Clock,
-  TrendingUp,
   User,
   FileText,
   DollarSign,
   Users,
-  BarChart3,
-  Target,
   Calendar,
   CheckCircle,
-  AlertCircle,
   LogOut,
   Settings,
   FolderOpen,
   UserPlus,
-  Upload,
   Shield,
   Contact,
+  CalendarDays,
+  ClipboardList,
+  DoorOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,35 +32,40 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Common items
   { title: 'Attendance', href: '/app/attendance', icon: Clock, roles: ['Admin', 'Manager', 'Employee'] },
-  { title: 'Efficiency', href: '/app/efficiency', icon: TrendingUp, roles: ['Admin', 'Manager', 'Employee'] },
+  { title: 'Holidays', href: '/app/holidays', icon: CalendarDays, roles: ['Admin', 'Manager', 'Employee'] },
   { title: 'Profile', href: '/app/profile', icon: User, roles: ['Admin', 'Manager', 'Employee'] },
   { title: 'Documents', href: '/app/documents', icon: FileText, roles: ['Admin', 'Manager', 'Employee'] },
   { title: 'Salary', href: '/app/salary', icon: DollarSign, roles: ['Admin', 'Manager', 'Employee'] },
-  { title: 'Engagement', href: '/app/engagement', icon: Users, roles: ['Admin', 'Manager', 'Employee'] },
   { title: 'Contacts', href: '/app/contacts', icon: Contact, roles: ['Admin', 'Manager', 'Employee'] },
   
   // Employee specific
   { title: 'My Leaves', href: '/app/leaves', icon: Calendar, roles: ['Employee'] },
+  { title: 'My Onboarding', href: '/app/my-onboarding', icon: ClipboardList, roles: ['Employee'] },
+  { title: 'My Offboarding', href: '/app/my-offboarding', icon: DoorOpen, roles: ['Employee'] },
   
   // Manager specific
   { title: 'My Team', href: '/app/team', icon: Users, roles: ['Manager'] },
-  { title: 'Team Efficiency', href: '/app/team-efficiency', icon: BarChart3, roles: ['Manager'] },
-  { title: 'Expectations', href: '/app/expectations', icon: Target, roles: ['Manager'] },
   { title: 'Attendance Overview', href: '/app/attendance-overview', icon: Clock, roles: ['Manager'] },
   { title: 'Leave Approvals', href: '/app/leave-approvals', icon: CheckCircle, roles: ['Manager'] },
-  { title: 'Probation Reviews', href: '/app/probation', icon: AlertCircle, roles: ['Manager'] },
-  { title: 'Resignations', href: '/app/resignations', icon: LogOut, roles: ['Manager'] },
   
   // Admin (HR) specific
   { title: 'Employee Directory', href: '/app/directory', icon: FolderOpen, roles: ['Admin'] },
   { title: 'Add Employee', href: '/app/add-employee', icon: UserPlus, roles: ['Admin'] },
-  { title: 'Bulk Upload', href: '/app/bulk-upload', icon: Upload, roles: ['Admin'] },
   { title: 'Onboarding', href: '/app/onboarding', icon: UserPlus, roles: ['Admin'] },
   { title: 'Offboarding', href: '/app/offboarding', icon: LogOut, roles: ['Admin'] },
   { title: 'Attendance Control', href: '/app/attendance-control', icon: Shield, roles: ['Admin'] },
   { title: 'Approvals', href: '/app/approvals', icon: CheckCircle, roles: ['Admin'] },
   { title: 'Settings', href: '/app/settings', icon: Settings, roles: ['Admin'] },
 ];
+
+// Hidden pages (kept for future use):
+// - Bulk Upload (Admin)
+// - Efficiency (All roles)
+// - Engagement (All roles)
+// - Team Efficiency (Manager)
+// - Expectations (Manager)
+// - Resignations (Manager)
+// - Probation Reviews (Manager)
 
 export const AppSidebar = () => {
   const location = useLocation();
@@ -73,11 +76,11 @@ export const AppSidebar = () => {
 
   // Group items by category
   const commonItems = filteredItems.filter(item => 
-    ['Attendance', 'Efficiency', 'Profile', 'Documents', 'Salary', 'Engagement', 'Contacts'].includes(item.title)
+    ['Attendance', 'Holidays', 'Profile', 'Documents', 'Salary', 'Contacts'].includes(item.title)
   );
   
   const roleSpecificItems = filteredItems.filter(item => 
-    !['Attendance', 'Efficiency', 'Profile', 'Documents', 'Salary', 'Engagement', 'Contacts'].includes(item.title)
+    !['Attendance', 'Holidays', 'Profile', 'Documents', 'Salary', 'Contacts'].includes(item.title)
   );
 
   // Get initials from employee name

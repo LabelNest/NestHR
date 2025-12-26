@@ -22,6 +22,9 @@ import SalaryPage from "./pages/SalaryPage";
 import MyLeavesPage from "./pages/MyLeavesPage";
 import EngagementPage from "./pages/EngagementPage";
 import ContactsPage from "./pages/ContactsPage";
+import HolidaysPage from "./pages/HolidaysPage";
+import MyOnboardingPage from "./pages/MyOnboardingPage";
+import MyOffboardingPage from "./pages/MyOffboardingPage";
 
 // Manager Pages
 import MyTeamPage from "./pages/manager/MyTeamPage";
@@ -64,6 +67,9 @@ const App = () => (
                 <Route path="leaves" element={<MyLeavesPage />} />
                 <Route path="engagement" element={<EngagementPage />} />
                 <Route path="contacts" element={<ContactsPage />} />
+                <Route path="holidays" element={<HolidaysPage />} />
+                <Route path="my-onboarding" element={<MyOnboardingPage />} />
+                <Route path="my-offboarding" element={<MyOffboardingPage />} />
               </Route>
             </Route>
             
