@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 interface LeaveRequestWithEmployee {
   id: string;
@@ -38,11 +39,13 @@ interface LeaveRequestWithEmployee {
   employee: {
     id: string;
     full_name: string;
+    employee_code: string | null;
+    role: string;
   };
 }
 
 const ApprovalsPage = () => {
-  const { employee } = useAuth();
+  const { employee, role } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestWithEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -55,70 +58,97 @@ const ApprovalsPage = () => {
   const [approvedThisMonth, setApprovedThisMonth] = useState(0);
   const [rejectedThisMonth, setRejectedThisMonth] = useState(0);
 
+  const isAdmin = role === 'Admin';
+
   const fetchLeaveRequests = async () => {
     if (!employee?.id) return;
 
     try {
-      // Get team member IDs (employees where manager_id = current employee)
-      const { data: teamMembers, error: teamError } = await supabase
-        .from('hr_employees')
-        .select('id')
-        .eq('manager_id', employee.id);
+      let requests: LeaveRequestWithEmployee[] = [];
 
-      if (teamError) throw teamError;
+      if (isAdmin) {
+        // Admin sees ALL pending leave requests (from all employees including managers)
+        const { data, error } = await supabase
+          .from('hr_leave_requests')
+          .select(`
+            id,
+            leave_type,
+            start_date,
+            end_date,
+            total_days,
+            reason,
+            status,
+            created_at,
+            employee:hr_employees!hr_leave_requests_employee_id_fkey(id, full_name, employee_code, role)
+          `)
+          .order('created_at', { ascending: false });
 
-      const teamIds = teamMembers?.map((m) => m.id) || [];
+        if (error) throw error;
 
-      if (teamIds.length === 0) {
-        setLeaveRequests([]);
-        setLoading(false);
-        return;
+        requests = (data || []).map((r: any) => ({
+          ...r,
+          employee: r.employee,
+        }));
+      } else {
+        // Manager sees only their direct reports' leave requests
+        const { data: teamMembers, error: teamError } = await supabase
+          .from('hr_employees')
+          .select('id')
+          .eq('manager_id', employee.id);
+
+        if (teamError) throw teamError;
+
+        const teamIds = teamMembers?.map((m) => m.id) || [];
+
+        if (teamIds.length === 0) {
+          setLeaveRequests([]);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('hr_leave_requests')
+          .select(`
+            id,
+            leave_type,
+            start_date,
+            end_date,
+            total_days,
+            reason,
+            status,
+            created_at,
+            employee:hr_employees!hr_leave_requests_employee_id_fkey(id, full_name, employee_code, role)
+          `)
+          .in('employee_id', teamIds)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        requests = (data || []).map((r: any) => ({
+          ...r,
+          employee: r.employee,
+        }));
       }
 
-      // Fetch leave requests for team members
-      const { data: requests, error: reqError } = await supabase
-        .from('hr_leave_requests')
-        .select(`
-          id,
-          leave_type,
-          start_date,
-          end_date,
-          total_days,
-          reason,
-          status,
-          created_at,
-          employee:hr_employees!hr_leave_requests_employee_id_fkey(id, full_name)
-        `)
-        .in('employee_id', teamIds)
-        .order('created_at', { ascending: false });
-
-      if (reqError) throw reqError;
-
-      // Transform the data to match our interface
-      const transformedRequests = (requests || []).map((r: any) => ({
-        ...r,
-        employee: r.employee,
-      }));
-
-      setLeaveRequests(transformedRequests);
+      setLeaveRequests(requests);
 
       // Calculate stats
       const now = new Date();
       const monthStart = startOfMonth(now);
       const monthEnd = endOfMonth(now);
 
-      setPendingCount(transformedRequests.filter((r: any) => r.status === 'Pending').length);
+      setPendingCount(requests.filter((r) => r.status === 'Pending').length);
       setApprovedThisMonth(
-        transformedRequests.filter(
-          (r: any) =>
+        requests.filter(
+          (r) =>
             r.status === 'Approved' &&
             parseISO(r.created_at) >= monthStart &&
             parseISO(r.created_at) <= monthEnd
         ).length
       );
       setRejectedThisMonth(
-        transformedRequests.filter(
-          (r: any) =>
+        requests.filter(
+          (r) =>
             r.status === 'Rejected' &&
             parseISO(r.created_at) >= monthStart &&
             parseISO(r.created_at) <= monthEnd
@@ -138,7 +168,7 @@ const ApprovalsPage = () => {
 
   useEffect(() => {
     fetchLeaveRequests();
-  }, [employee?.id]);
+  }, [employee?.id, role]);
 
   // Realtime subscription
   useEffect(() => {
@@ -162,7 +192,7 @@ const ApprovalsPage = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [employee?.id]);
+  }, [employee?.id, role]);
 
   const handleApprove = async (request: LeaveRequestWithEmployee) => {
     if (!employee?.id) return;
@@ -288,7 +318,19 @@ const ApprovalsPage = () => {
         <TableBody>
           {requests.map((request) => (
             <TableRow key={request.id}>
-              <TableCell className="font-medium">{request.employee.full_name}</TableCell>
+              <TableCell>
+                <div>
+                  <p className="font-medium">{request.employee.full_name}</p>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span>{request.employee.employee_code}</span>
+                    {request.employee.role && (
+                      <Badge variant="outline" className="text-xs">
+                        {request.employee.role}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </TableCell>
               <TableCell>{request.leave_type}</TableCell>
               <TableCell>
                 {format(parseISO(request.start_date), 'MMM d')} -{' '}
@@ -337,8 +379,10 @@ const ApprovalsPage = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Approvals</h1>
-        <p className="text-muted-foreground">Review and approve team leave requests</p>
+        <h1 className="text-2xl font-display font-bold text-foreground">Leave Approvals</h1>
+        <p className="text-muted-foreground">
+          {isAdmin ? 'Review and approve all employee leave requests' : 'Review and approve team leave requests'}
+        </p>
       </div>
 
       {/* Summary Cards */}
