@@ -12,6 +12,7 @@ interface StatCardProps {
     isPositive: boolean;
   };
   className?: string;
+  onClick?: () => void;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -21,9 +22,13 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon: Icon,
   trend,
   className,
+  onClick,
 }) => {
   return (
-    <Card className={cn('p-6 glass-card animate-fade-in', className)}>
+    <Card 
+      className={cn('p-6 glass-card animate-fade-in', onClick && 'cursor-pointer hover:shadow-md transition-shadow', className)}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{title}</p>
