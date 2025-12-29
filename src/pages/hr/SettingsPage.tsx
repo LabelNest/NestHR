@@ -29,7 +29,6 @@ const SettingsPage = () => {
     halfDayHours: 4,
     fullDayHours: 8,
     weekends: ['saturday', 'sunday'],
-    trackBreaks: true,
   });
 
   const [leaveSettings, setLeaveSettings] = useState({
@@ -38,7 +37,6 @@ const SettingsPage = () => {
     personalLeaveQuota: 5,
     carryForwardLimit: 5,
     requireApproval: true,
-    notifyManager: true,
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
@@ -153,18 +151,6 @@ const SettingsPage = () => {
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-foreground">Track Break Times</p>
-                  <p className="text-sm text-muted-foreground">Allow employees to log break in/out times</p>
-                </div>
-                <Switch 
-                  checked={attendanceSettings.trackBreaks}
-                  onCheckedChange={(checked) => setAttendanceSettings({ ...attendanceSettings, trackBreaks: checked })}
-                />
-              </div>
             </div>
           </Card>
         </TabsContent>
@@ -222,27 +208,15 @@ const SettingsPage = () => {
 
               <Separator />
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">Require Manager Approval</p>
-                    <p className="text-sm text-muted-foreground">Leave requests need manager approval before HR</p>
-                  </div>
-                  <Switch 
-                    checked={leaveSettings.requireApproval}
-                    onCheckedChange={(checked) => setLeaveSettings({ ...leaveSettings, requireApproval: checked })}
-                  />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Require Manager Approval</p>
+                  <p className="text-sm text-muted-foreground">Leave requests need manager approval before HR</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">Notify Manager</p>
-                    <p className="text-sm text-muted-foreground">Send email to manager when leave is requested</p>
-                  </div>
-                  <Switch 
-                    checked={leaveSettings.notifyManager}
-                    onCheckedChange={(checked) => setLeaveSettings({ ...leaveSettings, notifyManager: checked })}
-                  />
-                </div>
+                <Switch 
+                  checked={leaveSettings.requireApproval}
+                  onCheckedChange={(checked) => setLeaveSettings({ ...leaveSettings, requireApproval: checked })}
+                />
               </div>
             </div>
           </Card>
