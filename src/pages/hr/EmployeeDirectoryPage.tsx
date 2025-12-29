@@ -302,9 +302,11 @@ const EmployeeDirectoryPage = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                {departments.map(dept => (
-                  <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                ))}
+                <SelectItem value="NestOps">NestOps</SelectItem>
+                <SelectItem value="NestHQ">NestHQ</SelectItem>
+                <SelectItem value="NestTech">NestTech</SelectItem>
+                <SelectItem value="NestLabs">NestLabs</SelectItem>
+                <SelectItem value="Nest People">Nest People</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>

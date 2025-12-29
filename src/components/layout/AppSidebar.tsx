@@ -12,7 +12,6 @@ import {
   Settings,
   FolderOpen,
   UserPlus,
-  Shield,
   Contact,
   CalendarDays,
   ClipboardList,
@@ -86,13 +85,15 @@ export const AppSidebar = () => {
   return (
     <aside className="w-64 bg-sidebar h-screen flex flex-col border-r border-sidebar-border">
       <div className="p-6 border-b border-sidebar-border">
-        <Link to="/app" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-sidebar-primary rounded-lg flex items-center justify-center">
-            <span className="text-sidebar-primary-foreground font-bold text-sm">N</span>
-          </div>
+        <Link to="/app" className="flex items-center gap-3">
+          <img 
+            src="/labelnest-logo.jpg" 
+            alt="LabelNest" 
+            className="h-10 w-auto rounded-lg"
+          />
           <div>
-            <span className="font-display font-bold text-sidebar-foreground">NestHR</span>
-            <span className="text-xs text-sidebar-foreground/50 block">by LabelNest</span>
+            <span className="font-display font-bold text-sidebar-foreground">LabelNest</span>
+            <span className="text-xs text-sidebar-foreground/50 block">HRMS</span>
           </div>
         </Link>
       </div>

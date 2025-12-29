@@ -356,14 +356,18 @@ const AddEmployeePage = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="department">Department *</Label>
-                <Input
-                  id="department"
-                  value={formData.department}
-                  onChange={(e) => updateField('department', e.target.value)}
-                  placeholder="e.g. Engineering, Sales, HR"
-                  required
-                  maxLength={100}
-                />
+                <Select value={formData.department} onValueChange={(value) => updateField('department', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NestOps">NestOps</SelectItem>
+                    <SelectItem value="NestHQ">NestHQ</SelectItem>
+                    <SelectItem value="NestTech">NestTech</SelectItem>
+                    <SelectItem value="NestLabs">NestLabs</SelectItem>
+                    <SelectItem value="Nest People">Nest People</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="designation">Designation *</Label>
