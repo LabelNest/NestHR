@@ -29,6 +29,7 @@ const AddEmployeePage = () => {
   const [saving, setSaving] = useState(false);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [emailError, setEmailError] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -49,12 +50,13 @@ const AddEmployeePage = () => {
     emergencyContactRelationship: '',
   });
 
-  // Fetch managers/admins for dropdown
+  // Fetch managers/admins for dropdown and generate employee code
   useEffect(() => {
-    const fetchManagers = async () => {
+    const fetchData = async () => {
       if (!currentEmployee?.org_id) return;
 
-      const { data } = await supabase
+      // Fetch managers
+      const { data: managersData } = await supabase
         .from('hr_employees')
         .select('id, full_name, role')
         .eq('org_id', currentEmployee.org_id)
@@ -62,10 +64,32 @@ const AddEmployeePage = () => {
         .eq('status', 'Active')
         .order('full_name');
 
-      setManagers(data || []);
+      setManagers(managersData || []);
+
+      // Generate next employee code (LNI0001, LNI0002, ...)
+      const { data: allEmployees } = await supabase
+        .from('hr_employees')
+        .select('employee_code')
+        .eq('org_id', currentEmployee.org_id)
+        .not('employee_code', 'is', null);
+
+      let maxNum = 0;
+      (allEmployees || []).forEach(emp => {
+        const code = emp.employee_code;
+        if (code && code.startsWith('LNI')) {
+          const numPart = parseInt(code.replace('LNI', ''), 10);
+          if (!isNaN(numPart) && numPart > maxNum) {
+            maxNum = numPart;
+          }
+        }
+      });
+
+      const nextNum = maxNum + 1;
+      const nextCode = `LNI${String(nextNum).padStart(4, '0')}`;
+      setGeneratedCode(nextCode);
     };
 
-    fetchManagers();
+    fetchData();
   }, [currentEmployee?.org_id]);
 
   const validateEmail = async (email: string): Promise<boolean> => {
@@ -153,6 +177,7 @@ const AddEmployeePage = () => {
           manager_id: formData.managerId || null,
           status: formData.status ? 'Active' : 'Inactive',
           joining_date: formData.joiningDate ? format(formData.joiningDate, 'yyyy-MM-dd') : null,
+          employee_code: generatedCode,
         })
         .select('id, employee_code')
         .single();
@@ -246,10 +271,18 @@ const AddEmployeePage = () => {
             </div>
           </div>
 
-          {/* Basic Info Section */}
+            {/* Basic Info Section */}
           <div>
             <SectionHeader icon={User} title="Basic Information" />
             <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Employee Code</Label>
+                <Input 
+                  value={generatedCode || 'Generating...'}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name *</Label>
                 <Input 
@@ -286,31 +319,18 @@ const AddEmployeePage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Date of Birth</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.dateOfBirth && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formData.dateOfBirth}
-                      onSelect={(date) => updateField('dateOfBirth', date)}
-                      disabled={(date) => date > new Date() || date < new Date("1940-01-01")}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Input
+                  id="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth ? format(formData.dateOfBirth, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateField('dateOfBirth', val ? new Date(val) : undefined);
+                  }}
+                  max={format(new Date(), 'yyyy-MM-dd')}
+                  min="1940-01-01"
+                />
               </div>
             </div>
           </div>
@@ -335,21 +355,15 @@ const AddEmployeePage = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Department *</Label>
-                <Select value={formData.department} onValueChange={(value) => updateField('department', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Human Resources">Human Resources</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="Operations">Operations</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="department">Department *</Label>
+                <Input
+                  id="department"
+                  value={formData.department}
+                  onChange={(e) => updateField('department', e.target.value)}
+                  placeholder="e.g. Engineering, Sales, HR"
+                  required
+                  maxLength={100}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="designation">Designation *</Label>

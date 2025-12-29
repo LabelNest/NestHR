@@ -219,17 +219,9 @@ const EmployeeDirectoryPage = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Employee Directory</h1>
-          <p className="text-muted-foreground">View and manage all employees</p>
-        </div>
-        {isAdmin && (
-          <Button onClick={() => navigate('/app/employees/add')}>
-            <UserPlus className="w-4 h-4 mr-2" />
-            Add Employee
-          </Button>
-        )}
+      <div>
+        <h1 className="text-2xl font-display font-bold text-foreground">Employee Directory</h1>
+        <p className="text-muted-foreground">View and manage all employees</p>
       </div>
 
       {/* Stats Cards */}
