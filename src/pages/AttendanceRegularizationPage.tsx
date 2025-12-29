@@ -30,7 +30,12 @@ interface RegularizationRequest {
   reviewed_at: string | null;
 }
 
-const STATUS_OPTIONS = ['Present', 'Half Day', 'On Leave'];
+// Use snake_case values for database, display as Title Case
+const STATUS_OPTIONS = [
+  { value: 'present', label: 'Present' },
+  { value: 'half_day', label: 'Half Day' },
+  { value: 'on_leave', label: 'On Leave' },
+];
 
 // Format snake_case to Title Case for display
 const formatStatusDisplay = (status: string): string => {
@@ -215,9 +220,15 @@ const AttendanceRegularizationPage = () => {
 
     setSubmitting(true);
     try {
-      // Format status to lowercase snake_case for database
-      const formattedRequestedStatus = requestedStatus.toLowerCase().replace(/\s+/g, '_');
+      // requestedStatus is already in snake_case (present, half_day, on_leave)
+      // currentStatus needs to be converted
       const formattedCurrentStatus = currentStatus.toLowerCase().replace(/\s+/g, '_');
+
+      console.log('Submitting regularization:', { requestedStatus, formattedCurrentStatus });
+
+      if (!requestedStatus) {
+        throw new Error('Requested status is required');
+      }
 
       const { error } = await supabase
         .from('hr_attendance_regularization_requests')
@@ -225,7 +236,7 @@ const AttendanceRegularizationPage = () => {
           employee_id: employee.id,
           attendance_date: format(selectedDate, 'yyyy-MM-dd'),
           current_status: formattedCurrentStatus,
-          requested_status: formattedRequestedStatus,
+          requested_status: requestedStatus,
           reason,
           status: 'Pending',
         });
@@ -343,9 +354,11 @@ const AttendanceRegularizationPage = () => {
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.filter(s => s !== currentStatus).map(status => (
-                      <SelectItem key={status} value={status}>{status}</SelectItem>
-                    ))}
+                    {STATUS_OPTIONS
+                      .filter(opt => opt.value !== currentStatus.toLowerCase().replace(/\s+/g, '_'))
+                      .map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
