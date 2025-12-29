@@ -297,7 +297,7 @@ export const EmployeeDetailModal = ({
                 variant="outline"
                 onClick={() => {
                   onOpenChange(false);
-                  navigate(`/app/employees/edit/${employee.id}`);
+                  navigate(`/app/edit-employee/${employee.id}`);
                 }}
               >
                 Edit
