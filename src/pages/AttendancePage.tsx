@@ -499,7 +499,15 @@ const AttendancePage = () => {
                           {record.total_hours ? `${record.total_hours}h` : '--'}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge status={record.status as 'present' | 'absent' | 'partial' || 'absent'} />
+                          <StatusBadge status={
+                            (() => {
+                              const status = record.status?.toLowerCase().replace(/\s+/g, '_');
+                              if (status === 'present') return 'present';
+                              if (status === 'partial' || status === 'half_day') return 'partial';
+                              if (status === 'absent') return 'absent';
+                              return 'absent';
+                            })()
+                          } />
                         </TableCell>
                       </TableRow>
                     ))
