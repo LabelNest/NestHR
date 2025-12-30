@@ -276,17 +276,21 @@ const AttendancePage = () => {
 
   const getStatus = (): 'present' | 'absent' | 'partial' => {
     if (!todayRecord) return 'absent';
-    if (todayRecord.status === 'present') return 'present';
-    if (todayRecord.status === 'partial') return 'partial';
+    const status = todayRecord.status?.toLowerCase().replace(/\s+/g, '_');
+    if (status === 'present') return 'present';
+    if (status === 'partial' || status === 'half_day') return 'partial';
     if (todayRecord.punch_in_time && !todayRecord.punch_out_time) return 'present';
     return 'absent';
   };
 
   const isPunchedIn = todayRecord && !todayRecord.punch_out_time;
 
-  // Stats calculations
-  const presentDays = attendanceHistory.filter(r => r.status === 'present').length;
-  const partialDays = attendanceHistory.filter(r => r.status === 'partial').length;
+  // Stats calculations - handle both lowercase and Title Case status values
+  const presentDays = attendanceHistory.filter(r => r.status?.toLowerCase() === 'present').length;
+  const partialDays = attendanceHistory.filter(r => {
+    const status = r.status?.toLowerCase().replace(/\s+/g, '_');
+    return status === 'partial' || status === 'half_day';
+  }).length;
 
   // Calendar helper functions
   const getDateStatus = (date: Date): 'present' | 'absent' | 'partial' | 'holiday' | 'leave' | null => {
@@ -298,11 +302,12 @@ const AttendancePage = () => {
     
     // Check attendance
     const attendance = monthAttendance.find(a => a.attendance_date === dateStr);
-    if (attendance) {
-      if (attendance.status === 'present') return 'present';
-      if (attendance.status === 'partial') return 'partial';
-      if (attendance.status === 'absent') return 'absent';
-      if (attendance.status === 'leave') return 'leave';
+    if (attendance && attendance.status) {
+      const status = attendance.status.toLowerCase().replace(/\s+/g, '_');
+      if (status === 'present') return 'present';
+      if (status === 'partial' || status === 'half_day') return 'partial';
+      if (status === 'absent') return 'absent';
+      if (status === 'leave' || status === 'on_leave') return 'leave';
     }
     
     return null;
