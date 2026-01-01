@@ -19,6 +19,7 @@ import {
   FileEdit,
   Megaphone,
   NotebookPen,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +53,7 @@ const navItems: NavItem[] = [
   { title: 'My Leaves', href: '/app/leaves', icon: Calendar, roles: ['Manager'] },
   { title: 'Attendance Regularization', href: '/app/attendance-regularization', icon: FileEdit, roles: ['Manager'] },
   { title: 'My Team', href: '/app/team', icon: Users, roles: ['Manager'] },
+  { title: 'Team Work Logs', href: '/app/manager/work-log-review', icon: ClipboardCheck, roles: ['Manager', 'Admin'] },
   { title: 'Leave Approvals', href: '/app/leave-approvals', icon: CheckCircle, roles: ['Manager'] },
 
   // Admin (HR) specific

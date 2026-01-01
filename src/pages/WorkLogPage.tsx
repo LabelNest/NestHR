@@ -559,6 +559,9 @@ const WorkLogPage = () => {
   const weekStatus = getWeekStatus();
   const canEdit = isWeekEditable();
   const canSubmit = canEdit && weekLogs.length > 0 && weekLogs.some(l => l.status === 'Draft' || l.status === 'Rework');
+  
+  // Get the latest rework comment from manager
+  const latestReworkComment = weekComments.find(c => c.action === 'Rework');
 
   return (
     <div className="space-y-6">
@@ -567,6 +570,39 @@ const WorkLogPage = () => {
         <h1 className="text-2xl font-bold text-foreground">My Work Log</h1>
         <p className="text-muted-foreground">Track your daily work activities</p>
       </div>
+
+      {/* Rework Alert Banner */}
+      {weekStatus === 'Rework' && (
+        <Card className="border-orange-500/50 bg-orange-500/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-orange-500/20 rounded-lg flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-600 mb-1">Manager Requested Changes</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Your work logs for this week need to be updated before resubmitting.
+                </p>
+                {latestReworkComment && (
+                  <div className="p-3 bg-background/80 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        {latestReworkComment.manager?.full_name || 'Manager'} says:
+                      </span>
+                    </div>
+                    <p className="text-sm">{latestReworkComment.comment}</p>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-3">
+                  Make the requested changes and click "Resubmit Week for Review" when done.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Week Summary */}
       <Card>
@@ -595,21 +631,11 @@ const WorkLogPage = () => {
               {canSubmit && (
                 <Button onClick={() => setShowSubmitDialog(true)}>
                   <Send className="h-4 w-4 mr-2" />
-                  Submit Week for Review
+                  {weekStatus === 'Rework' ? 'Resubmit Week for Review' : 'Submit Week for Review'}
                 </Button>
               )}
             </div>
           </div>
-          
-          {weekStatus === 'Rework' && (
-            <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-orange-600">Manager requested changes</p>
-                <p className="text-sm text-muted-foreground">Please review the comments and update your logs.</p>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

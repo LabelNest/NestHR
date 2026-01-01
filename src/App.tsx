@@ -29,6 +29,7 @@ import WorkLogPage from "./pages/WorkLogPage";
 
 // Manager Pages
 import MyTeamPage from "./pages/manager/MyTeamPage";
+import TeamWorkLogsPage from "./pages/manager/TeamWorkLogsPage";
 
 // HR Pages
 import EmployeeDirectoryPage from "./pages/hr/EmployeeDirectoryPage";
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="/app" element={<AppLayout />}>
                 <Route path="team" element={<MyTeamPage />} />
                 <Route path="leave-approvals" element={<ApprovalsPage />} />
+                <Route path="manager/work-log-review" element={<TeamWorkLogsPage />} />
               </Route>
             </Route>
             
