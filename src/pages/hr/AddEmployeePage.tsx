@@ -145,11 +145,7 @@ const AddEmployeePage = () => {
       return;
     }
 
-    // Validate joining date not in future
-    if (formData.joiningDate && formData.joiningDate > new Date()) {
-      toast.error('Joining date cannot be in the future');
-      return;
-    }
+    // Note: Joining date can be in the future (for scheduled hires)
 
     // Validate phone numbers
     if (formData.phone && !validatePhone(formData.phone)) {
@@ -476,7 +472,7 @@ const AddEmployeePage = () => {
                       mode="single"
                       selected={formData.joiningDate}
                       onSelect={(date) => updateField('joiningDate', date)}
-                      disabled={(date) => date > new Date()}
+                      disabled={(date) => date < new Date('2020-01-01')}
                       initialFocus
                       className="pointer-events-auto"
                     />

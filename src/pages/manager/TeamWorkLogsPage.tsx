@@ -473,14 +473,14 @@ const TeamWorkLogsPage = () => {
       const weekStartStr = format(selectedSubmission.weekStart, 'yyyy-MM-dd');
       const weekEndStr = format(selectedSubmission.weekEnd, 'yyyy-MM-dd');
       
-      // Update all logs in that week to Rework
+      // Update all logs in that week to Rework (works for both Submitted and Approved)
       const { error: updateError } = await supabase
         .from('hr_work_logs')
         .update({ status: 'Rework' })
         .eq('employee_id', selectedSubmission.employeeId)
         .gte('log_date', weekStartStr)
         .lte('log_date', weekEndStr)
-        .eq('status', 'Submitted');
+        .in('status', ['Submitted', 'Approved']);
       
       if (updateError) throw updateError;
       
@@ -748,33 +748,33 @@ const TeamWorkLogsPage = () => {
                       
                       <div className="flex items-center gap-2 flex-wrap">
                         {submission.status === 'Submitted' && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSubmission(submission);
-                                setShowApproveModal(true);
-                              }}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSubmission(submission);
-                                setShowReworkModal(true);
-                              }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1" />
-                              Request Rework
-                            </Button>
-                          </>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSubmission(submission);
+                              setShowApproveModal(true);
+                            }}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Approve
+                          </Button>
+                        )}
+                        {(submission.status === 'Submitted' || submission.status === 'Approved') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSubmission(submission);
+                              setShowReworkModal(true);
+                            }}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            {submission.status === 'Approved' ? 'Reopen for Rework' : 'Request Rework'}
+                          </Button>
                         )}
                         <CollapsibleTrigger asChild>
                           <Button variant="ghost" size="sm">
@@ -924,9 +924,13 @@ const TeamWorkLogsPage = () => {
       <Dialog open={showReworkModal} onOpenChange={setShowReworkModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request Rework - {selectedSubmission?.employeeName}</DialogTitle>
+            <DialogTitle>
+              {selectedSubmission?.status === 'Approved' ? 'Reopen for Rework' : 'Request Rework'} - {selectedSubmission?.employeeName}
+            </DialogTitle>
             <DialogDescription>
-              This will send the logs back to the employee for corrections.
+              {selectedSubmission?.status === 'Approved' 
+                ? 'This will move the approved log back to rework. The employee will need to make changes and resubmit.'
+                : 'This will send the logs back to the employee for corrections.'}
             </DialogDescription>
           </DialogHeader>
           
@@ -934,7 +938,9 @@ const TeamWorkLogsPage = () => {
             <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-orange-600">
-                The employee will be able to edit their logs and resubmit for review.
+                {selectedSubmission?.status === 'Approved'
+                  ? 'This will reopen the previously approved logs. The employee will be notified to make changes.'
+                  : 'The employee will be able to edit their logs and resubmit for review.'}
               </p>
             </div>
             
