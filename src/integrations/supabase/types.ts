@@ -661,6 +661,7 @@ export type Database = {
           full_name: string
           id: string
           joining_date: string | null
+          leave_balance: number | null
           manager_id: string | null
           org_id: string
           role: string
@@ -676,6 +677,7 @@ export type Database = {
           full_name: string
           id?: string
           joining_date?: string | null
+          leave_balance?: number | null
           manager_id?: string | null
           org_id: string
           role: string
@@ -691,6 +693,7 @@ export type Database = {
           full_name?: string
           id?: string
           joining_date?: string | null
+          leave_balance?: number | null
           manager_id?: string | null
           org_id?: string
           role?: string
