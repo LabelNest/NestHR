@@ -47,6 +47,7 @@ interface Appreciation {
   message: string;
   tag: string;
   is_public: boolean;
+  visible_to_team?: string | null;
   created_at: string;
   from_employee?: { full_name: string; employee_code: string };
   to_employee?: { full_name: string; employee_code: string };
@@ -56,7 +57,13 @@ interface Employee {
   id: string;
   full_name: string;
   employee_code: string;
+  role?: string;
+  hr_employee_details?: { department: string | null }[] | null;
 }
+
+type VisibilityType = 'Public' | 'Team' | 'Private';
+
+const TEAMS = ['NestOps', 'NestHQ', 'NestTech', 'NestLabs', 'Nest People'];
 
 const TAG_CONFIG: Record<string, { bg: string; icon: React.ReactNode; description: string }> = {
   'Great Teamwork': { 
@@ -128,6 +135,11 @@ const AppreciationsPage = () => {
   const [isPublic, setIsPublic] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [openEmployeeSelect, setOpenEmployeeSelect] = useState(false);
+  const [visibility, setVisibility] = useState<VisibilityType>('Public');
+  const [selectedTeam, setSelectedTeam] = useState<string>('');
+
+  const { role } = useAuth();
+  const isManagerOrAdmin = role === 'Manager' || role === 'Admin';
 
   const fetchAppreciations = async () => {
     if (!employee?.id) return;
@@ -190,12 +202,20 @@ const AppreciationsPage = () => {
   const fetchEmployees = async () => {
     if (!employee?.id) return;
     
-    const { data, error } = await supabase
+    // For employees: only show other employees (not managers/admins)
+    // For managers/admins: show all active employees
+    let query = supabase
       .from('hr_employees')
-      .select('id, full_name, employee_code')
+      .select('id, full_name, employee_code, role, hr_employee_details(department)')
       .neq('id', employee.id)
-      .eq('status', 'Active')
-      .order('full_name');
+      .eq('status', 'Active');
+
+    // Employees can only appreciate other employees (peer-to-peer)
+    if (role === 'Employee') {
+      query = query.eq('role', 'Employee');
+    }
+
+    const { data, error } = await query.order('full_name');
     
     if (error) {
       console.error('Error fetching employees:', error);
@@ -212,9 +232,37 @@ const AppreciationsPage = () => {
 
   const handleGiveAppreciation = async () => {
     if (!selectedEmployee || !selectedTag || message.length < 20) return;
+
+    // For team visibility, require team selection
+    if (isManagerOrAdmin && visibility === 'Team' && !selectedTeam) {
+      toast({
+        title: 'Please select a team',
+        description: 'Team selection is required for team-only visibility',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setSubmitting(true);
     try {
+      // Determine visibility settings
+      let visibleToTeam = 'All';
+      let finalIsPublic = true;
+
+      if (isManagerOrAdmin) {
+        if (visibility === 'Team') {
+          visibleToTeam = selectedTeam;
+          finalIsPublic = false;
+        } else if (visibility === 'Private') {
+          visibleToTeam = 'Private';
+          finalIsPublic = false;
+        }
+      } else {
+        // Regular employee: use simple public toggle
+        finalIsPublic = isPublic;
+        visibleToTeam = isPublic ? 'All' : 'Private';
+      }
+
       const { error } = await supabase
         .from('hr_appreciations')
         .insert({
@@ -222,7 +270,8 @@ const AppreciationsPage = () => {
           to_employee_id: selectedEmployee.id,
           message,
           tag: selectedTag,
-          is_public: isPublic,
+          is_public: finalIsPublic,
+          visible_to_team: visibleToTeam,
         });
       
       if (error) throw error;
@@ -290,6 +339,8 @@ const AppreciationsPage = () => {
     setSelectedTag('');
     setMessage('');
     setIsPublic(true);
+    setVisibility('Public');
+    setSelectedTeam('');
   };
 
   const getInitials = (name: string) => {
@@ -307,7 +358,8 @@ const AppreciationsPage = () => {
     return createdAt > fiveMinutesAgo;
   };
 
-  const isFormValid = selectedEmployee && selectedTag && message.length >= 20 && message.length <= 500;
+  const isFormValid = selectedEmployee && selectedTag && message.length >= 20 && message.length <= 500 &&
+    (isManagerOrAdmin ? (visibility !== 'Team' || selectedTeam) : true);
 
   const renderAppreciationCard = (appreciation: Appreciation, type: 'feed' | 'received' | 'given') => {
     const tagConfig = TAG_CONFIG[appreciation.tag] || { bg: 'bg-gray-500', icon: <Star className="w-4 h-4" /> };
@@ -362,10 +414,12 @@ const AppreciationsPage = () => {
             {/* Message */}
             <p className="text-foreground leading-relaxed">{appreciation.message}</p>
             
-            {/* Private indicator */}
-            {!appreciation.is_public && (
+            {/* Visibility indicator */}
+            {appreciation.is_public && appreciation.visible_to_team === 'All' ? null : (
               <Badge variant="outline" className="mt-2 text-xs">
-                Private
+                {appreciation.visible_to_team === 'Private' ? 'Private' : 
+                 appreciation.visible_to_team && appreciation.visible_to_team !== 'All' ? 
+                 `${appreciation.visible_to_team} Team Only` : 'Private'}
               </Badge>
             )}
           </div>
@@ -599,18 +653,66 @@ const AppreciationsPage = () => {
               </div>
             </div>
 
-            {/* Public Toggle */}
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div>
-                <Label htmlFor="public-toggle" className="font-medium">Make it Public?</Label>
-                <p className="text-sm text-muted-foreground">Public appreciations inspire the whole team!</p>
+            {/* Visibility Section */}
+            {isManagerOrAdmin ? (
+              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                <div className="space-y-2">
+                  <Label className="font-medium">Visibility</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['Public', 'Team', 'Private'] as VisibilityType[]).map((option) => (
+                      <Button
+                        key={option}
+                        type="button"
+                        variant={visibility === option ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setVisibility(option)}
+                      >
+                        {option === 'Public' && 'Public - Everyone'}
+                        {option === 'Team' && 'Team Only'}
+                        {option === 'Private' && 'Private'}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {visibility === 'Public' && 'Everyone in the company can see this appreciation'}
+                    {visibility === 'Team' && 'Only members of the selected team can see this'}
+                    {visibility === 'Private' && 'Only you and the recipient can see this'}
+                  </p>
+                </div>
+
+                {visibility === 'Team' && (
+                  <div className="space-y-2">
+                    <Label>Select Team</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {TEAMS.map((team) => (
+                        <Button
+                          key={team}
+                          type="button"
+                          variant={selectedTeam === team ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedTeam(team)}
+                        >
+                          {team}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <Switch
-                id="public-toggle"
-                checked={isPublic}
-                onCheckedChange={setIsPublic}
-              />
-            </div>
+            ) : (
+              /* Regular Employee: Simple Public Toggle */
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div>
+                  <Label htmlFor="public-toggle" className="font-medium">Make it Public?</Label>
+                  <p className="text-sm text-muted-foreground">Public appreciations inspire the whole team!</p>
+                </div>
+                <Switch
+                  id="public-toggle"
+                  checked={isPublic}
+                  onCheckedChange={setIsPublic}
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>

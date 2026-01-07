@@ -393,6 +393,7 @@ export type Database = {
           message: string
           tag: string
           to_employee_id: string
+          visible_to_team: string | null
         }
         Insert: {
           created_at?: string | null
@@ -402,6 +403,7 @@ export type Database = {
           message: string
           tag: string
           to_employee_id: string
+          visible_to_team?: string | null
         }
         Update: {
           created_at?: string | null
@@ -411,6 +413,7 @@ export type Database = {
           message?: string
           tag?: string
           to_employee_id?: string
+          visible_to_team?: string | null
         }
         Relationships: [
           {

@@ -240,6 +240,24 @@ const ApprovalsPage = () => {
           .eq('id', entitlement.id);
       }
 
+      // Also update hr_employees.leave_balance for system-wide visibility
+      const { data: empData } = await supabase
+        .from('hr_employees')
+        .select('leave_balance')
+        .eq('id', request.employee.id)
+        .single();
+
+      const currentBalance = empData?.leave_balance || 0;
+      const newBalance = Math.max(0, currentBalance - request.total_days);
+
+      await supabase
+        .from('hr_employees')
+        .update({ 
+          leave_balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', request.employee.id);
+
       // Step 3: Mark leave dates as "On Leave" in attendance
       const startDate = parseISO(request.start_date);
       const endDate = parseISO(request.end_date);
