@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Plus, Loader2, X } from 'lucide-react';
-import { format, differenceInDays, isWeekend, eachDayOfInterval, parseISO } from 'date-fns';
+import { Calendar, Plus, Loader2, X, Info } from 'lucide-react';
+import { format, eachDayOfInterval, isWeekend, parseISO } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -34,6 +34,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useEmployeeGender } from '@/hooks/useEmployeeGender';
+import { 
+  LEAVE_TYPES, 
+  SPECIAL_LEAVE_REASONS, 
+  getLeaveTypesForGender, 
+  getTotalLeaveDays, 
+  getLeaveSummaryText,
+  LeaveTypeConfig 
+} from '@/lib/leaveTypes';
 
 interface LeaveEntitlement {
   id: string;
@@ -54,14 +69,9 @@ interface LeaveRequest {
   created_at: string;
 }
 
-const LEAVE_TYPES = [
-  { value: 'Earned Leave', label: 'Earned Leave' },
-  { value: 'Casual Leave', label: 'Casual Leave' },
-  { value: 'Sick Leave', label: 'Sick Leave' },
-];
-
 const MyLeavesPage = () => {
   const { employee } = useAuth();
+  const { gender, loading: genderLoading } = useEmployeeGender(employee?.id);
   const [entitlements, setEntitlements] = useState<LeaveEntitlement[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,8 +83,13 @@ const MyLeavesPage = () => {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [reason, setReason] = useState('');
+  const [specialLeaveReason, setSpecialLeaveReason] = useState('');
 
   const currentYear = new Date().getFullYear();
+  
+  // Get leave types based on gender
+  const availableLeaveTypes = getLeaveTypesForGender(gender);
+  const selectedLeaveTypeConfig = LEAVE_TYPES.find(lt => lt.value === leaveType);
 
   const fetchData = async () => {
     if (!employee?.id) return;
@@ -154,9 +169,10 @@ const MyLeavesPage = () => {
 
   const getEntitlement = (type: string) => {
     const ent = entitlements.find((e) => e.leave_type === type);
+    const config = LEAVE_TYPES.find(lt => lt.value === type);
     return {
       remaining: ent?.remaining_leaves ?? 0,
-      total: ent?.total_leaves ?? 0,
+      total: ent?.total_leaves ?? config?.totalDays ?? 0,
     };
   };
 
@@ -172,6 +188,7 @@ const MyLeavesPage = () => {
     setStartDate(undefined);
     setEndDate(undefined);
     setReason('');
+    setSpecialLeaveReason('');
   };
 
   const handleSubmit = async () => {
@@ -179,6 +196,16 @@ const MyLeavesPage = () => {
       toast({
         title: 'Validation Error',
         description: 'Please fill all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate special leave reason
+    if (selectedLeaveTypeConfig?.requiresSpecialReason && !specialLeaveReason) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please select a reason for Special Leave',
         variant: 'destructive',
       });
       return;
@@ -196,13 +223,19 @@ const MyLeavesPage = () => {
 
     setSubmitting(true);
     try {
+      // Build reason string
+      let finalReason = reason;
+      if (selectedLeaveTypeConfig?.requiresSpecialReason && specialLeaveReason) {
+        finalReason = specialLeaveReason + (reason ? `: ${reason}` : '');
+      }
+
       const { error } = await supabase.from('hr_leave_requests').insert({
         employee_id: employee.id,
         leave_type: leaveType,
         start_date: format(startDate, 'yyyy-MM-dd'),
         end_date: format(endDate, 'yyyy-MM-dd'),
         total_days: totalDays,
-        reason: reason || null,
+        reason: finalReason || null,
         status: 'Pending',
       });
 
@@ -263,7 +296,7 @@ const MyLeavesPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading || genderLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -278,7 +311,7 @@ const MyLeavesPage = () => {
           <h1 className="text-2xl font-display font-bold text-foreground">My Leaves</h1>
           <p className="text-muted-foreground">View and request time off</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
@@ -292,22 +325,57 @@ const MyLeavesPage = () => {
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Leave Type *</Label>
-                <Select value={leaveType} onValueChange={setLeaveType}>
+                <Select value={leaveType} onValueChange={(value) => { setLeaveType(value); setSpecialLeaveReason(''); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select leave type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {LEAVE_TYPES.map((type) => {
+                    {availableLeaveTypes.map((type) => {
                       const { remaining, total } = getEntitlement(type.value);
                       return (
                         <SelectItem key={type.value} value={type.value}>
-                          {type.label} ({remaining}/{total} days)
+                          <div className="flex items-center gap-2">
+                            <span>{type.label}</span>
+                            <span className="text-muted-foreground">({remaining}/{total} days)</span>
+                          </div>
                         </SelectItem>
                       );
                     })}
                   </SelectContent>
                 </Select>
+                {selectedLeaveTypeConfig && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Info className="w-3 h-3" />
+                    {selectedLeaveTypeConfig.description}
+                  </p>
+                )}
               </div>
+
+              {/* Show balance for selected leave type */}
+              {leaveType && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Available Balance: <span className="font-semibold text-foreground">{getEntitlement(leaveType).remaining} days</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Special Leave Reason */}
+              {selectedLeaveTypeConfig?.requiresSpecialReason && (
+                <div className="space-y-2">
+                  <Label>Occasion *</Label>
+                  <Select value={specialLeaveReason} onValueChange={setSpecialLeaveReason}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Birthday / Parent's Birthday / Spouse Birthday / Child's Birthday / Other" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SPECIAL_LEAVE_REASONS.map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -386,15 +454,22 @@ const MyLeavesPage = () => {
                     Total Working Days: <span className="font-semibold text-foreground">{totalDays}</span>
                     <span className="text-xs ml-2">(excluding weekends)</span>
                   </p>
+                  {leaveType && totalDays > getEntitlement(leaveType).remaining && (
+                    <p className="text-sm text-destructive mt-1">
+                      ⚠️ Insufficient balance! You only have {getEntitlement(leaveType).remaining} days remaining.
+                    </p>
+                  )}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label>Reason</Label>
+                <Label>{selectedLeaveTypeConfig?.requiresSpecialReason ? 'Additional Notes' : 'Reason'}</Label>
                 <Textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Enter reason for leave..."
+                  placeholder={selectedLeaveTypeConfig?.requiresSpecialReason 
+                    ? "Any additional notes (optional)..." 
+                    : "Enter reason for leave..."}
                   rows={3}
                 />
               </div>
@@ -403,7 +478,10 @@ const MyLeavesPage = () => {
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit} disabled={submitting}>
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={submitting || (leaveType && totalDays > getEntitlement(leaveType).remaining)}
+                >
                   {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Submit Request
                 </Button>
@@ -413,34 +491,66 @@ const MyLeavesPage = () => {
         </Dialog>
       </div>
 
+      {/* Leave Summary */}
+      <Card className="p-4 glass-card">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Calendar className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Total Leave Entitlement</p>
+            <p className="text-lg font-semibold text-foreground">{getLeaveSummaryText(gender)}</p>
+          </div>
+        </div>
+      </Card>
+
       {/* Leave Balance Cards */}
-      <div className="grid md:grid-cols-3 gap-4">
-        {LEAVE_TYPES.map((type) => {
-          const ent = entitlements.find((e) => e.leave_type === type.value);
-          const remaining = ent?.remaining_leaves ?? 0;
-          const total = ent?.total_leaves ?? 0;
-          const usedDays = total - remaining;
-          return (
-            <Card key={type.value} className="p-4 glass-card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{type.label}</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {remaining}{' '}
-                    <span className="text-sm font-normal text-muted-foreground">/ {total} days</span>
-                  </p>
-                  {usedDays > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {usedDays} days used
+      <TooltipProvider>
+        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {availableLeaveTypes.map((type) => {
+            const ent = entitlements.find((e) => e.leave_type === type.value);
+            const remaining = ent?.remaining_leaves ?? 0;
+            const total = ent?.total_leaves ?? type.totalDays;
+            const usedDays = total - remaining;
+            return (
+              <Card key={type.value} className="p-4 glass-card">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm text-muted-foreground">{type.label}</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">{type.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">
+                      {remaining}{' '}
+                      <span className="text-sm font-normal text-muted-foreground">/ {total}</span>
                     </p>
-                  )}
+                    <p className="text-xs text-muted-foreground">days remaining</p>
+                    {usedDays > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {usedDays} days used
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <Calendar className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+                {/* Progress bar */}
+                <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary rounded-full transition-all"
+                    style={{ width: `${total > 0 ? (remaining / total) * 100 : 0}%` }}
+                  />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </TooltipProvider>
 
       {/* Leave Requests History */}
       <Card className="glass-card overflow-hidden">
@@ -500,12 +610,13 @@ const MyLeavesPage = () => {
             </TableBody>
           </Table>
         ) : (
-          <div className="p-12 text-center">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <div className="p-8 text-center">
+            <Calendar className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-muted-foreground">No leave requests yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Click "Apply Leave" to submit your first request
-            </p>
+            <Button variant="outline" className="mt-4" onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Apply for Leave
+            </Button>
           </div>
         )}
       </Card>

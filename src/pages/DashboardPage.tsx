@@ -7,9 +7,8 @@ import { StatCard } from '@/components/shared/StatCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { 
   Clock, 
   Users, 
@@ -20,12 +19,20 @@ import {
   FolderOpen,
   UserPlus,
   FileEdit,
-  UserCheck,
   Megaphone,
   Heart,
   FileText,
-  ClipboardList
+  ClipboardList,
+  Info
 } from 'lucide-react';
+import { useEmployeeGender } from '@/hooks/useEmployeeGender';
+import { getLeaveTypesForGender, getLeaveSummaryText, LEAVE_TYPES } from '@/lib/leaveTypes';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface LeaveBalance {
   leave_type: string;
@@ -57,6 +64,10 @@ interface Appreciation {
 const DashboardPage = () => {
   const { role, employee, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { gender, loading: genderLoading } = useEmployeeGender(employee?.id);
+  
+  // Get leave types based on gender
+  const availableLeaveTypes = getLeaveTypesForGender(gender);
   
   const [dataLoading, setDataLoading] = useState(true);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
@@ -248,31 +259,59 @@ const DashboardPage = () => {
           </p>
         </div>
 
-        {/* Leave Balance Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {dataLoading ? (
-            [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-          ) : (
-            ['Earned Leave', 'Casual Leave', 'Sick Leave'].map((leaveType) => {
-              const lb = leaveBalances.find(b => b.leave_type === leaveType);
-              return (
-                <Card key={leaveType} className="p-4 glass-card">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">{leaveType}</p>
-                      <p className="text-xl font-bold text-foreground">
-                        {lb?.remaining_leaves ?? 0} <span className="text-sm font-normal text-muted-foreground">/ {lb?.total_leaves ?? 0} days</span>
+        {/* Leave Summary Card */}
+        <Card className="p-4 glass-card">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">My Leave Entitlement</p>
+              <p className="text-lg font-semibold text-foreground">{getLeaveSummaryText(gender)}</p>
+            </div>
+          </div>
+          
+          {/* Leave Balance Cards */}
+          <TooltipProvider>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {dataLoading || genderLoading ? (
+                [1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)
+              ) : (
+                availableLeaveTypes.map((type) => {
+                  const lb = leaveBalances.find(b => b.leave_type === type.value);
+                  const remaining = lb?.remaining_leaves ?? 0;
+                  const total = lb?.total_leaves ?? type.totalDays;
+                  return (
+                    <div key={type.value} className="p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-1 mb-1">
+                        <p className="text-xs text-muted-foreground">{type.shortLabel}</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-medium">{type.label}</p>
+                            <p className="text-xs">{type.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <p className="text-lg font-bold text-foreground">
+                        {remaining}<span className="text-sm font-normal text-muted-foreground">/{total}</span>
                       </p>
+                      {/* Mini progress bar */}
+                      <div className="mt-1 h-1 bg-background rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary rounded-full"
+                          style={{ width: `${total > 0 ? (remaining / total) * 100 : 0}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              );
-            })
-          )}
-        </div>
+                  );
+                })
+              )}
+            </div>
+          </TooltipProvider>
+        </Card>
 
         {/* Quick Actions */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -487,19 +526,30 @@ const DashboardPage = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">My Leave Balance</p>
-              {dataLoading ? (
+              <p className="text-xs text-muted-foreground mb-2">{getLeaveSummaryText(gender)}</p>
+              {dataLoading || genderLoading ? (
                 <Skeleton className="h-6 w-48" />
               ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {['Earned Leave', 'Casual Leave', 'Sick Leave'].map((leaveType) => {
-                    const lb = leaveBalances.find(b => b.leave_type === leaveType);
-                    return (
-                      <Badge key={leaveType} variant="secondary" className="text-sm">
-                        {leaveType}: {lb?.remaining_leaves ?? 0}/{lb?.total_leaves ?? 0}
-                      </Badge>
-                    );
-                  })}
-                </div>
+                <TooltipProvider>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {availableLeaveTypes.map((type) => {
+                      const lb = leaveBalances.find(b => b.leave_type === type.value);
+                      return (
+                        <Tooltip key={type.value}>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="text-sm cursor-help">
+                              {type.shortLabel}: {lb?.remaining_leaves ?? 0}/{lb?.total_leaves ?? type.totalDays}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-medium">{type.label}</p>
+                            <p className="text-xs">{type.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                </TooltipProvider>
               )}
             </div>
             <Button variant="ghost" size="sm" onClick={() => navigate('/app/leaves')}>
@@ -688,19 +738,30 @@ const DashboardPage = () => {
           </div>
           <div className="flex-1">
             <p className="text-sm text-muted-foreground">My Leave Balance</p>
-            {dataLoading ? (
+            <p className="text-xs text-muted-foreground mb-2">{getLeaveSummaryText(gender)}</p>
+            {dataLoading || genderLoading ? (
               <Skeleton className="h-6 w-48" />
             ) : (
-              <div className="flex items-center gap-2 flex-wrap">
-                {['Earned Leave', 'Casual Leave', 'Sick Leave'].map((leaveType) => {
-                  const lb = leaveBalances.find(b => b.leave_type === leaveType);
-                  return (
-                    <Badge key={leaveType} variant="secondary" className="text-sm">
-                      {leaveType}: {lb?.remaining_leaves ?? 0}/{lb?.total_leaves ?? 0}
-                    </Badge>
-                  );
-                })}
-              </div>
+              <TooltipProvider>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {availableLeaveTypes.map((type) => {
+                    const lb = leaveBalances.find(b => b.leave_type === type.value);
+                    return (
+                      <Tooltip key={type.value}>
+                        <TooltipTrigger asChild>
+                          <Badge variant="secondary" className="text-sm cursor-help">
+                            {type.shortLabel}: {lb?.remaining_leaves ?? 0}/{lb?.total_leaves ?? type.totalDays}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="font-medium">{type.label}</p>
+                          <p className="text-xs">{type.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </TooltipProvider>
             )}
           </div>
           <Button variant="ghost" size="sm" onClick={() => navigate('/app/leaves')}>
