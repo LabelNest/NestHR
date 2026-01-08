@@ -442,54 +442,137 @@ const OnboardingPage = () => {
                   Assign to Multiple
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Assign Default Tasks to Multiple Employees</DialogTitle>
+              <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden">
+                <DialogHeader className="px-6 py-4 border-b bg-muted/30">
+                  <DialogTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    Assign Default Onboarding Tasks
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Select employees to assign the standard 10 onboarding tasks
+                  </p>
                 </DialogHeader>
-                <div className="space-y-4 pt-4 flex-1 overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <Label>Select Employees</Label>
-                    <Button variant="ghost" size="sm" onClick={selectAllEmployees}>
-                      {selectedEmployeeIds.length === employees.length ? 'Deselect All' : 'Select All'}
+                
+                <div className="flex flex-col md:flex-row h-[60vh] min-h-[400px]">
+                  {/* Left: Employee Selection */}
+                  <div className="flex-1 flex flex-col border-r">
+                    <div className="flex items-center justify-between p-4 border-b bg-background">
+                      <div className="flex items-center gap-2">
+                        <Label className="font-semibold">Employees</Label>
+                        <Badge variant="secondary">{employees.length}</Badge>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={selectAllEmployees}
+                        className="text-xs"
+                      >
+                        {selectedEmployeeIds.length === employees.length ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto bg-background">
+                      {employees.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground">
+                          <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                          <p>No employees found</p>
+                        </div>
+                      ) : (
+                        employees.map(emp => {
+                          const isSelected = selectedEmployeeIds.includes(emp.id);
+                          return (
+                            <div 
+                              key={emp.id} 
+                              className={`flex items-center gap-3 p-3 border-b last:border-0 cursor-pointer transition-colors ${
+                                isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : 'hover:bg-muted/50'
+                              }`}
+                              onClick={() => toggleEmployeeSelection(emp.id)}
+                            >
+                              <Checkbox 
+                                checked={isSelected}
+                                onCheckedChange={() => toggleEmployeeSelection(emp.id)}
+                                className="pointer-events-none"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{emp.full_name}</p>
+                                <p className="text-xs text-muted-foreground">{emp.employee_code || 'No code'}</p>
+                              </div>
+                              {isSelected && (
+                                <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Right: Tasks Preview */}
+                  <div className="w-full md:w-72 flex flex-col bg-muted/20">
+                    <div className="p-4 border-b">
+                      <Label className="font-semibold">Tasks to Assign</Label>
+                      <p className="text-xs text-muted-foreground mt-1">10 standard onboarding tasks</p>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                      {DEFAULT_ONBOARDING_TASKS.map((task, i) => {
+                        const Icon = categoryIcons[task.category] || FileText;
+                        return (
+                          <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-background text-xs">
+                            <Icon className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{task.title}</p>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                                  {task.category}
+                                </Badge>
+                                {task.mandatory && (
+                                  <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
+                                    Required
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Footer */}
+                <div className="flex items-center justify-between p-4 border-t bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={selectedEmployeeIds.length > 0 ? 'default' : 'secondary'}>
+                      {selectedEmployeeIds.length} selected
+                    </Badge>
+                    {selectedEmployeeIds.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        × 10 tasks = {selectedEmployeeIds.length * 10} total tasks
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsBulkDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleBulkAssignTasks}
+                      disabled={selectedEmployeeIds.length === 0 || saving === 'bulk'}
+                    >
+                      {saving === 'bulk' ? (
+                        <>
+                          <Clock className="w-4 h-4 mr-2 animate-spin" />
+                          Assigning...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Assign Tasks
+                        </>
+                      )}
                     </Button>
                   </div>
-                  <div className="border rounded-lg overflow-y-auto max-h-64 flex-1">
-                    {employees.map(emp => (
-                      <div 
-                        key={emp.id} 
-                        className="flex items-center gap-3 p-3 hover:bg-muted/50 border-b last:border-0 cursor-pointer"
-                        onClick={() => toggleEmployeeSelection(emp.id)}
-                      >
-                        <Checkbox 
-                          checked={selectedEmployeeIds.includes(emp.id)}
-                          onCheckedChange={() => toggleEmployeeSelection(emp.id)}
-                        />
-                        <div>
-                          <p className="font-medium">{emp.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{emp.employee_code}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {selectedEmployeeIds.length} employee(s) selected • 10 tasks will be assigned to each
-                  </div>
-                  <div className="bg-muted/50 p-3 rounded-lg text-sm">
-                    <p className="font-medium mb-2">Tasks to be assigned:</p>
-                    <ul className="space-y-1 text-muted-foreground">
-                      {DEFAULT_ONBOARDING_TASKS.slice(0, 5).map((task, i) => (
-                        <li key={i}>• {task.title}</li>
-                      ))}
-                      <li>• ... and {DEFAULT_ONBOARDING_TASKS.length - 5} more</li>
-                    </ul>
-                  </div>
-                  <Button 
-                    className="w-full" 
-                    onClick={handleBulkAssignTasks}
-                    disabled={selectedEmployeeIds.length === 0 || saving === 'bulk'}
-                  >
-                    {saving === 'bulk' ? 'Assigning...' : `Assign Tasks to ${selectedEmployeeIds.length} Employee(s)`}
-                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
