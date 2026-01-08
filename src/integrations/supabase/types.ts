@@ -1592,6 +1592,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      carry_forward_earned_leaves: { Args: never; Returns: undefined }
       generate_employee_code: { Args: { org_uuid: string }; Returns: string }
       user_employee_id: { Args: never; Returns: string }
       user_role: { Args: never; Returns: string }
