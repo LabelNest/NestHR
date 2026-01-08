@@ -61,69 +61,74 @@ const AttendancePage = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch attendance data function - extracted for reuse
+  const fetchAttendance = async (showLoading = true) => {
+    if (!employee?.id) return;
+    
+    if (showLoading) setLoading(true);
+    try {
+      // Fetch all today's sessions
+      const { data: todayData, error: todayError } = await supabase
+        .from('hr_attendance')
+        .select('*')
+        .eq('employee_id', employee.id)
+        .eq('attendance_date', today)
+        .order('punch_in_time', { ascending: true });
+
+      if (todayError) throw todayError;
+      setTodaySessions(todayData || []);
+
+      // Fetch last 30 days history
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data: historyData, error: historyError } = await supabase
+        .from('hr_attendance')
+        .select('*')
+        .eq('employee_id', employee.id)
+        .gte('attendance_date', format(thirtyDaysAgo, 'yyyy-MM-dd'))
+        .order('attendance_date', { ascending: false })
+        .order('punch_in_time', { ascending: true });
+
+      if (historyError) throw historyError;
+      setAttendanceHistory(historyData || []);
+
+      // Calculate monthly hours
+      const monthStart = startOfMonth(new Date());
+      const monthEnd = endOfMonth(new Date());
+      
+      const { data: monthData, error: monthError } = await supabase
+        .from('hr_attendance')
+        .select('total_hours')
+        .eq('employee_id', employee.id)
+        .gte('attendance_date', format(monthStart, 'yyyy-MM-dd'))
+        .lte('attendance_date', format(monthEnd, 'yyyy-MM-dd'));
+
+      if (monthError) throw monthError;
+      
+      const totalHours = (monthData || []).reduce(
+        (sum, record) => sum + (record.total_hours || 0), 
+        0
+      );
+      setMonthlyHours(totalHours);
+
+    } catch (error: any) {
+      console.error('Error fetching attendance:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load attendance data',
+        variant: 'destructive',
+      });
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
   // Fetch today's attendance and history
   useEffect(() => {
     if (!employee?.id) return;
 
-    const fetchAttendance = async () => {
-      setLoading(true);
-      try {
-        // Fetch all today's sessions
-        const { data: todayData, error: todayError } = await supabase
-          .from('hr_attendance')
-          .select('*')
-          .eq('employee_id', employee.id)
-          .eq('attendance_date', today)
-          .order('punch_in_time', { ascending: true });
-
-        if (todayError) throw todayError;
-        setTodaySessions(todayData || []);
-
-        // Fetch last 30 days history
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        const { data: historyData, error: historyError } = await supabase
-          .from('hr_attendance')
-          .select('*')
-          .eq('employee_id', employee.id)
-          .gte('attendance_date', format(thirtyDaysAgo, 'yyyy-MM-dd'))
-          .order('attendance_date', { ascending: false })
-          .order('punch_in_time', { ascending: true });
-
-        if (historyError) throw historyError;
-        setAttendanceHistory(historyData || []);
-
-        // Calculate monthly hours
-        const monthStart = startOfMonth(new Date());
-        const monthEnd = endOfMonth(new Date());
-        
-        const { data: monthData, error: monthError } = await supabase
-          .from('hr_attendance')
-          .select('total_hours')
-          .eq('employee_id', employee.id)
-          .gte('attendance_date', format(monthStart, 'yyyy-MM-dd'))
-          .lte('attendance_date', format(monthEnd, 'yyyy-MM-dd'));
-
-        if (monthError) throw monthError;
-        
-        const totalHours = (monthData || []).reduce(
-          (sum, record) => sum + (record.total_hours || 0), 
-          0
-        );
-        setMonthlyHours(totalHours);
-
-      } catch (error: any) {
-        console.error('Error fetching attendance:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load attendance data',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+    fetchAttendance();
 
     fetchAttendance();
 
@@ -219,6 +224,9 @@ const AttendancePage = () => {
         description: `Successfully punched in at ${format(new Date(), 'HH:mm')}`,
       });
 
+      // Refresh attendance data immediately
+      await fetchAttendance(false);
+
     } catch (error: any) {
       console.error('Error punching in:', error);
       toast({
@@ -265,6 +273,9 @@ const AttendancePage = () => {
         title: 'Punched Out',
         description: `Session ended. Hours: ${hoursWorked.toFixed(2)}h`,
       });
+
+      // Refresh attendance data immediately
+      await fetchAttendance(false);
 
     } catch (error: any) {
       console.error('Error punching out:', error);
