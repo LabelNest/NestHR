@@ -1,5 +1,21 @@
 // Email templates for NestHR notifications
 
+// HTML escape function to prevent XSS attacks
+const escapeHtml = (text: string | undefined | null): string => {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+};
+
+// Escape HTML while preserving line breaks for multi-line content
+const escapeHtmlWithBreaks = (text: string | undefined | null): string => {
+  return escapeHtml(text).replace(/\n/g, '<br>');
+};
+
 const baseStyles = `
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
   .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #2563eb; }
@@ -43,12 +59,12 @@ export const leaveApprovedTemplate = (data: {
   endDate: string;
 }): string => wrapTemplate('Leave Request Approved', `
   <h2 style="color: #16a34a;">Leave Request Approved ✅</h2>
-  <p>Hi ${data.employeeName},</p>
-  <p>Your leave request has been <strong>approved</strong> by ${data.managerName}.</p>
+  <p>Hi ${escapeHtml(data.employeeName)},</p>
+  <p>Your leave request has been <strong>approved</strong> by ${escapeHtml(data.managerName)}.</p>
   <div class="highlight">
-    <p style="margin: 5px 0;"><strong>Leave Type:</strong> ${data.leaveType}</p>
-    <p style="margin: 5px 0;"><strong>From:</strong> ${data.startDate}</p>
-    <p style="margin: 5px 0;"><strong>To:</strong> ${data.endDate}</p>
+    <p style="margin: 5px 0;"><strong>Leave Type:</strong> ${escapeHtml(data.leaveType)}</p>
+    <p style="margin: 5px 0;"><strong>From:</strong> ${escapeHtml(data.startDate)}</p>
+    <p style="margin: 5px 0;"><strong>To:</strong> ${escapeHtml(data.endDate)}</p>
   </div>
   <p>Enjoy your time off!</p>
 `);
@@ -62,13 +78,13 @@ export const leaveRejectedTemplate = (data: {
   reason?: string;
 }): string => wrapTemplate('Leave Request Rejected', `
   <h2 style="color: #dc2626;">Leave Request Rejected ❌</h2>
-  <p>Hi ${data.employeeName},</p>
-  <p>Your leave request has been <strong>rejected</strong> by ${data.managerName}.</p>
+  <p>Hi ${escapeHtml(data.employeeName)},</p>
+  <p>Your leave request has been <strong>rejected</strong> by ${escapeHtml(data.managerName)}.</p>
   <div class="highlight">
-    <p style="margin: 5px 0;"><strong>Leave Type:</strong> ${data.leaveType}</p>
-    <p style="margin: 5px 0;"><strong>From:</strong> ${data.startDate}</p>
-    <p style="margin: 5px 0;"><strong>To:</strong> ${data.endDate}</p>
-    ${data.reason ? `<p style="margin: 5px 0;"><strong>Reason:</strong> ${data.reason}</p>` : ''}
+    <p style="margin: 5px 0;"><strong>Leave Type:</strong> ${escapeHtml(data.leaveType)}</p>
+    <p style="margin: 5px 0;"><strong>From:</strong> ${escapeHtml(data.startDate)}</p>
+    <p style="margin: 5px 0;"><strong>To:</strong> ${escapeHtml(data.endDate)}</p>
+    ${data.reason ? `<p style="margin: 5px 0;"><strong>Reason:</strong> ${escapeHtmlWithBreaks(data.reason)}</p>` : ''}
   </div>
   <p>Please contact your manager for more details.</p>
 `);
@@ -81,14 +97,14 @@ export const appreciationReceivedTemplate = (data: {
   appUrl: string;
 }): string => wrapTemplate('You Received an Appreciation!', `
   <h2 style="color: #ec4899;">You received an appreciation! ❤️</h2>
-  <p>Hi ${data.recipientName},</p>
-  <p><strong>${data.senderName}</strong> appreciated you for <strong>${data.tag}</strong>!</p>
+  <p>Hi ${escapeHtml(data.recipientName)},</p>
+  <p><strong>${escapeHtml(data.senderName)}</strong> appreciated you for <strong>${escapeHtml(data.tag)}</strong>!</p>
   <div class="quote">
-    "${data.message}"
+    "${escapeHtmlWithBreaks(data.message)}"
   </div>
   <p>Keep up the great work!</p>
   <p style="text-align: center; margin-top: 25px;">
-    <a href="${data.appUrl}/app/appreciations?tab=received" class="btn">View Appreciation</a>
+    <a href="${escapeHtml(data.appUrl)}/app/appreciations?tab=received" class="btn">View Appreciation</a>
   </p>
 `);
 
@@ -99,12 +115,12 @@ export const workLogApprovedTemplate = (data: {
   comment?: string;
 }): string => wrapTemplate('Work Log Approved', `
   <h2 style="color: #16a34a;">Work Log Approved ✅</h2>
-  <p>Hi ${data.employeeName},</p>
-  <p>Your work log for <strong>${data.weekRange}</strong> has been approved by ${data.managerName}.</p>
+  <p>Hi ${escapeHtml(data.employeeName)},</p>
+  <p>Your work log for <strong>${escapeHtml(data.weekRange)}</strong> has been approved by ${escapeHtml(data.managerName)}.</p>
   ${data.comment ? `
   <div class="highlight">
     <p style="margin: 0;"><strong>Manager's comment:</strong></p>
-    <p style="margin: 5px 0 0;">${data.comment}</p>
+    <p style="margin: 5px 0 0;">${escapeHtmlWithBreaks(data.comment)}</p>
   </div>
   ` : ''}
   <p>Great job on documenting your work!</p>
@@ -118,15 +134,15 @@ export const workLogReworkTemplate = (data: {
   appUrl: string;
 }): string => wrapTemplate('Work Log - Rework Requested', `
   <h2 style="color: #ea580c;">Work Log - Rework Requested 🔄</h2>
-  <p>Hi ${data.employeeName},</p>
-  <p>Your manager has requested changes to your work log for <strong>${data.weekRange}</strong>.</p>
+  <p>Hi ${escapeHtml(data.employeeName)},</p>
+  <p>Your manager has requested changes to your work log for <strong>${escapeHtml(data.weekRange)}</strong>.</p>
   <div class="highlight">
     <p style="margin: 0;"><strong>Manager's feedback:</strong></p>
-    <p style="margin: 5px 0 0;">${data.comment}</p>
+    <p style="margin: 5px 0 0;">${escapeHtmlWithBreaks(data.comment)}</p>
   </div>
   <p>Please review and resubmit your work log.</p>
   <p style="text-align: center; margin-top: 25px;">
-    <a href="${data.appUrl}/app/work-log" class="btn">Update Work Log</a>
+    <a href="${escapeHtml(data.appUrl)}/app/work-log" class="btn">Update Work Log</a>
   </p>
 `);
 
@@ -137,13 +153,13 @@ export const announcementTemplate = (data: {
   appUrl: string;
 }): string => wrapTemplate('New Announcement', `
   <h2 style="color: #2563eb;">📢 New Announcement</h2>
-  <p>Hi ${data.employeeName},</p>
-  <h3 style="color: #333;">${data.title}</h3>
+  <p>Hi ${escapeHtml(data.employeeName)},</p>
+  <h3 style="color: #333;">${escapeHtml(data.title)}</h3>
   <div class="highlight">
-    <p style="margin: 0;">${data.content}</p>
+    <p style="margin: 0;">${escapeHtmlWithBreaks(data.content)}</p>
   </div>
   <p style="text-align: center; margin-top: 25px;">
-    <a href="${data.appUrl}/app/announcements" class="btn">View Announcement</a>
+    <a href="${escapeHtml(data.appUrl)}/app/announcements" class="btn">View Announcement</a>
   </p>
 `);
 
@@ -155,10 +171,10 @@ export const regularizationApprovedTemplate = (data: {
   adminNotes?: string;
 }): string => wrapTemplate('Attendance Regularization Approved', `
   <h2 style="color: #16a34a;">Attendance Regularization Approved ✅</h2>
-  <p>Hi ${data.employeeName},</p>
-  <p>Your attendance regularization request for <strong>${data.date}</strong> has been approved.</p>
+  <p>Hi ${escapeHtml(data.employeeName)},</p>
+  <p>Your attendance regularization request for <strong>${escapeHtml(data.date)}</strong> has been approved.</p>
   <div class="highlight">
-    <p style="margin: 5px 0;"><strong>Status updated:</strong> ${data.oldStatus} → ${data.newStatus}</p>
-    ${data.adminNotes ? `<p style="margin: 5px 0;"><strong>Admin notes:</strong> ${data.adminNotes}</p>` : ''}
+    <p style="margin: 5px 0;"><strong>Status updated:</strong> ${escapeHtml(data.oldStatus)} → ${escapeHtml(data.newStatus)}</p>
+    ${data.adminNotes ? `<p style="margin: 5px 0;"><strong>Admin notes:</strong> ${escapeHtmlWithBreaks(data.adminNotes)}</p>` : ''}
   </div>
 `);

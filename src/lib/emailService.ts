@@ -24,10 +24,18 @@ const getAppUrl = () => {
 
 const sendEmail = async (to: string, subject: string, html: string): Promise<boolean> => {
   try {
+    // Get current session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.error('No active session - cannot send email');
+      return false;
+    }
+
     const response = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({ to, subject, html }),
     });
