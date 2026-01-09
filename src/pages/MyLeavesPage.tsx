@@ -315,7 +315,7 @@ const MyLeavesPage = () => {
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              Apply Leave
+              Apply for Leave
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">

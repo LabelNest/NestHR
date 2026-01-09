@@ -20,6 +20,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, Mail, Phone, Building, MapPin, Briefcase, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Contact {
   id: string;
@@ -41,27 +42,41 @@ const ContactsPage = () => {
 
   useEffect(() => {
     const fetchContacts = async () => {
-      if (!currentEmployee?.org_id) return;
+      if (!currentEmployee?.id || !currentEmployee?.org_id) return;
 
       setLoading(true);
 
-      // Fetch active employees with their details
-      const { data: employeesData } = await supabase
+      // Build query based on role
+      let query = supabase
         .from('hr_employees')
-        .select('id, full_name, email')
+        .select('id, full_name, email, manager_id')
         .eq('org_id', currentEmployee.org_id)
         .eq('status', 'Active')
         .order('full_name');
+
+      // Role-based filtering
+      if (currentEmployee.role === 'Employee') {
+        // Employee: See only own data
+        query = query.eq('id', currentEmployee.id);
+      } else if (currentEmployee.role === 'Manager') {
+        // Manager: See own data + team members
+        query = query.or(`id.eq.${currentEmployee.id},manager_id.eq.${currentEmployee.id}`);
+      }
+      // Admin: No filter, see all
+
+      const { data: employeesData } = await query;
 
       if (!employeesData) {
         setLoading(false);
         return;
       }
 
-      // Fetch employee details
+      // Fetch employee details for visible employees only
+      const employeeIds = employeesData.map(e => e.id);
       const { data: detailsData } = await supabase
         .from('hr_employee_details')
-        .select('employee_id, phone, department, designation, location');
+        .select('employee_id, phone, department, designation, location')
+        .in('employee_id', employeeIds);
 
       const detailsMap = new Map(
         (detailsData || []).map(d => [d.employee_id, d])
@@ -85,7 +100,7 @@ const ContactsPage = () => {
     };
 
     fetchContacts();
-  }, [currentEmployee?.org_id]);
+  }, [currentEmployee?.id, currentEmployee?.org_id, currentEmployee?.role]);
 
   // Filter contacts based on search
   const filteredContacts = useMemo(() => {
@@ -128,11 +143,20 @@ const ContactsPage = () => {
     );
   }
 
+  const getRoleDescription = () => {
+    if (currentEmployee?.role === 'Employee') return 'Your contact information';
+    if (currentEmployee?.role === 'Manager') return 'Your team contacts';
+    return 'All employee contacts';
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Contacts</h1>
-        <p className="text-muted-foreground">Employee contact directory</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground">Contacts</h1>
+          <p className="text-muted-foreground">{getRoleDescription()}</p>
+        </div>
+        <Badge variant="outline" className="w-fit">{currentEmployee?.role}</Badge>
       </div>
 
       {/* Search Bar */}

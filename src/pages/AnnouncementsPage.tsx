@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Megaphone, Pin, Check, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { Plus, Megaphone, Pin, Check, MoreVertical, Edit, Trash2, Cake, PartyPopper, Loader2 } from 'lucide-react';
+import { checkBirthdaysAndAnniversaries } from '@/utils/birthdayAnniversaryCheck';
 
 interface Announcement {
   id: string;
@@ -44,6 +45,7 @@ const AnnouncementsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [checkingBirthdays, setCheckingBirthdays] = useState(false);
   const [departments, setDepartments] = useState<string[]>([]);
 
   // Form state
@@ -291,11 +293,34 @@ const AnnouncementsPage = () => {
           <h1 className="text-2xl font-display font-bold text-foreground">Company Announcements</h1>
           <p className="text-muted-foreground">Stay updated with company news and updates</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => setCreateModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Create Announcement
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                setCheckingBirthdays(true);
+                toast({ title: 'Checking...', description: 'Looking for birthdays and anniversaries' });
+                const result = await checkBirthdaysAndAnniversaries(employee?.id);
+                if (result.birthdays > 0 || result.anniversaries > 0) {
+                  toast({ title: 'Announcements Created!', description: `${result.birthdays} birthday(s) and ${result.anniversaries} anniversary(ies) found` });
+                  fetchAnnouncements();
+                } else {
+                  toast({ title: 'No Events Today', description: 'No birthdays or work anniversaries found for today' });
+                }
+                setCheckingBirthdays(false);
+              }}
+              disabled={checkingBirthdays}
+            >
+              {checkingBirthdays ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cake className="mr-2 h-4 w-4" />}
+              Check Birthdays
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => setCreateModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Create Announcement
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -325,9 +350,19 @@ const AnnouncementsPage = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
-                      {a.is_important && (
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                      {a.is_important && !a.title.includes('🎂') && !a.title.includes('🎊') && (
+                        <Badge variant="secondary" className="bg-red-100 text-red-800 border-red-300">
                           <Pin className="h-3 w-3 mr-1" /> Important
+                        </Badge>
+                      )}
+                      {a.title.includes('🎂') && (
+                        <Badge variant="secondary" className="bg-pink-100 text-pink-800 border-pink-300">
+                          <Cake className="h-3 w-3 mr-1" /> Birthday
+                        </Badge>
+                      )}
+                      {a.title.includes('🎊') && (
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-300">
+                          <PartyPopper className="h-3 w-3 mr-1" /> Work Anniversary
                         </Badge>
                       )}
                       <Badge variant="outline">{getTargetLabel(a)}</Badge>
