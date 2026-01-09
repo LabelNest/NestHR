@@ -17,6 +17,7 @@ import { UserPlus, CalendarIcon, User, Briefcase, MapPin, Phone, Loader2, Upload
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { generateEmailFromName, generateEmployeeCode } from '@/lib/employeeUtils';
+import { sendWelcomeEmail } from '@/lib/emailService';
 
 interface Manager {
   id: string;
@@ -284,7 +285,21 @@ const AddEmployeePage = () => {
         }
       } catch (onboardingErr) {
         console.error('Onboarding setup error:', onboardingErr);
-        // Don't fail employee creation if onboarding setup fails
+      // Don't fail employee creation if onboarding setup fails
+      }
+
+      // Step 6: Send welcome email
+      try {
+        await sendWelcomeEmail(
+          emailLower,
+          formData.fullName.trim(),
+          generatedCode,
+          password
+        );
+        console.log('Welcome email sent to:', emailLower);
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+        // Don't fail the whole operation if email fails
       }
 
       toast.success(

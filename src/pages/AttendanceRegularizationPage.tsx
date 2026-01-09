@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CalendarIcon, Loader2, FileEdit, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { sendRegularizationAppliedEmail } from '@/lib/emailService';
 
 interface RegularizationRequest {
   id: string;
@@ -257,6 +258,29 @@ const AttendanceRegularizationPage = () => {
         });
 
       if (error) throw error;
+
+      // Send email notification to manager if employee has a manager
+      if (employee.manager_id) {
+        try {
+          const { data: manager } = await supabase
+            .from('hr_employees')
+            .select('email, full_name')
+            .eq('id', employee.manager_id)
+            .single();
+
+          if (manager) {
+            await sendRegularizationAppliedEmail(
+              manager.email,
+              manager.full_name,
+              employee.full_name,
+              format(selectedDate, 'MMMM d, yyyy'),
+              reason
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send regularization notification email:', emailError);
+        }
+      }
 
       toast({ title: 'Request submitted successfully!' });
       

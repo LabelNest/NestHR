@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Calendar, Plus, Loader2, X, Info } from 'lucide-react';
 import { format, eachDayOfInterval, isWeekend, parseISO } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+import { sendLeaveAppliedEmail } from '@/lib/emailService';
 import {
   Dialog,
   DialogContent,
@@ -240,6 +241,31 @@ const MyLeavesPage = () => {
       });
 
       if (error) throw error;
+
+      // Send email notification to manager if employee has a manager
+      if (employee.manager_id) {
+        try {
+          const { data: manager } = await supabase
+            .from('hr_employees')
+            .select('email, full_name')
+            .eq('id', employee.manager_id)
+            .single();
+
+          if (manager) {
+            await sendLeaveAppliedEmail(
+              manager.email,
+              manager.full_name,
+              employee.full_name,
+              leaveType,
+              format(startDate, 'MMMM d, yyyy'),
+              format(endDate, 'MMMM d, yyyy'),
+              finalReason || 'Not specified'
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send leave notification email:', emailError);
+        }
+      }
 
       toast({
         title: 'Success',

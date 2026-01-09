@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Clock, CheckCircle, XCircle, Loader2, Eye, Search } from 'lucide-react';
 import { StatCard } from '@/components/shared/StatCard';
+import { sendRegularizationApprovedEmail, sendRegularizationRejectedEmail } from '@/lib/emailService';
 
 interface RegularizationRequest {
   id: string;
@@ -218,6 +219,20 @@ const AttendanceRegularizationAdminPage = () => {
 
       if (requestError) throw requestError;
 
+      // Send approval email
+      try {
+        await sendRegularizationApprovedEmail(
+          selectedRequest.employee_id,
+          format(new Date(selectedRequest.attendance_date), 'MMMM d, yyyy'),
+          employee.full_name,
+          formatStatusDisplay(selectedRequest.current_status),
+          formatStatusDisplay(selectedRequest.requested_status),
+          adminNotes || undefined
+        );
+      } catch (emailError) {
+        console.error('Failed to send regularization approval email:', emailError);
+      }
+
       toast({ title: 'Request approved and attendance updated!' });
       closeAction();
       fetchRequests();
@@ -258,6 +273,18 @@ const AttendanceRegularizationAdminPage = () => {
         .eq('id', selectedRequest.id);
 
       if (error) throw error;
+
+      // Send rejection email
+      try {
+        await sendRegularizationRejectedEmail(
+          selectedRequest.employee_id,
+          format(new Date(selectedRequest.attendance_date), 'MMMM d, yyyy'),
+          employee.full_name,
+          adminNotes
+        );
+      } catch (emailError) {
+        console.error('Failed to send regularization rejection email:', emailError);
+      }
 
       toast({ title: 'Request rejected' });
       closeAction();
