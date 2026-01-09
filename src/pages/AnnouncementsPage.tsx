@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Megaphone, Pin, Check, MoreVertical, Edit, Trash2, Cake, PartyPopper, Loader2 } from 'lucide-react';
 import { checkBirthdaysAndAnniversaries } from '@/utils/birthdayAnniversaryCheck';
+import { EmojiReactions } from '@/components/announcements/EmojiReactions';
 
 interface Announcement {
   id: string;
@@ -381,6 +382,11 @@ const AnnouncementsPage = () => {
                       <span>•</span>
                       <span>{a.created_at ? formatDistanceToNow(new Date(a.created_at), { addSuffix: true }) : ''}</span>
                     </div>
+                    {employee?.id && (
+                      <div className="mt-3 pt-3 border-t border-border/50">
+                        <EmojiReactions announcementId={a.id} employeeId={employee.id} />
+                      </div>
+                    )}
                   </div>
                   {canEditDelete(a) && (
                     <DropdownMenu>
