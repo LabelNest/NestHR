@@ -229,16 +229,10 @@ const OffboardingPage = () => {
 
     setSaving('initiate');
     try {
-      // Step 1: Update employee status based on exit type
-      const newStatus = initiateForm.exit_type === 'Termination' ? 'Terminated' : 'Resigned';
-      const { error: statusError } = await supabase
-        .from('hr_employees')
-        .update({ status: newStatus })
-        .eq('id', selectedEmployeeId);
+      // NOTE: Employee status stays Active until offboarding is complete AND last working day has passed
+      // No status change on initiation - employee can still login and complete tasks
 
-      if (statusError) throw statusError;
-
-      // Step 2: Create offboarding record
+      // Step 1: Create offboarding record
       const { data: newOffboarding, error: offError } = await supabase
         .from('hr_offboarding')
         .insert({
@@ -255,7 +249,7 @@ const OffboardingPage = () => {
 
       if (offError) throw offError;
 
-      // Step 3: Create default tasks
+      // Step 2: Create default tasks
       for (const task of DEFAULT_TASKS) {
         await supabase.from('hr_offboarding_tasks').insert({
           offboarding_id: newOffboarding.id,
@@ -265,7 +259,7 @@ const OffboardingPage = () => {
         });
       }
 
-      toast({ title: 'Offboarding initiated', description: `Employee marked as ${newStatus}. Default tasks have been created.` });
+      toast({ title: 'Offboarding initiated', description: 'Offboarding tasks have been created. Employee can still login to complete tasks until last working day.' });
       setIsInitiateDialogOpen(false);
       setInitiateForm({ resignation_date: undefined, last_working_day: undefined, exit_type: 'Resignation', exit_reason: '' });
       fetchEmployees(); // Refresh employee list
@@ -386,6 +380,23 @@ const OffboardingPage = () => {
   const completeOffboarding = async () => {
     if (!offboarding?.id || !selectedEmployeeId) return;
 
+    // Check if last working day has passed
+    if (offboarding.last_working_day) {
+      const lastDay = new Date(offboarding.last_working_day);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      lastDay.setHours(0, 0, 0, 0);
+      
+      if (lastDay > today) {
+        toast({ 
+          title: 'Cannot complete yet', 
+          description: `Last working day (${format(lastDay, 'MMM d, yyyy')}) has not passed yet. Employee can still login until then.`, 
+          variant: 'destructive' 
+        });
+        return;
+      }
+    }
+
     setSaving('complete');
     try {
       // Update offboarding status
@@ -399,7 +410,7 @@ const OffboardingPage = () => {
 
       if (offError) throw offError;
 
-      // Set employee status to Inactive
+      // Set employee status to Inactive - NOW they cannot login
       const { error: empError } = await supabase
         .from('hr_employees')
         .update({ status: 'Inactive' })
@@ -407,7 +418,7 @@ const OffboardingPage = () => {
 
       if (empError) throw empError;
 
-      toast({ title: 'Offboarding completed', description: 'Employee has been marked as inactive' });
+      toast({ title: 'Offboarding completed', description: 'Employee has been marked as inactive and can no longer login.' });
       fetchOffboarding(selectedEmployeeId);
       fetchEmployees(); // Refresh employee list
     } catch (error: any) {
@@ -416,6 +427,18 @@ const OffboardingPage = () => {
     } finally {
       setSaving(null);
     }
+  };
+
+  // Check if offboarding can be completed (all tasks done + last working day passed)
+  const canCompleteOffboarding = () => {
+    if (!offboarding?.last_working_day || pendingCount > 0 || totalTasks === 0) return false;
+    
+    const lastDay = new Date(offboarding.last_working_day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    lastDay.setHours(0, 0, 0, 0);
+    
+    return lastDay <= today;
   };
 
   // Group tasks by category
@@ -912,16 +935,20 @@ const OffboardingPage = () => {
                 <div>
                   <h3 className="font-semibold text-foreground">Complete Offboarding</h3>
                   <p className="text-sm text-muted-foreground">
-                    {canComplete 
-                      ? 'All tasks are completed. You can now finalize the offboarding process.'
-                      : `${pendingCount} task(s) remaining. Complete all tasks before finalizing.`}
+                    {canCompleteOffboarding() 
+                      ? 'All tasks are completed and last working day has passed. You can now finalize the offboarding process.'
+                      : pendingCount > 0 
+                        ? `${pendingCount} task(s) remaining. Complete all tasks before finalizing.`
+                        : daysRemaining !== null && daysRemaining > 0
+                          ? `Last working day is in ${daysRemaining} day(s). Employee can still login until then.`
+                          : 'Set last working day to complete offboarding.'}
                   </p>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button 
-                      variant={canComplete ? 'default' : 'outline'}
-                      disabled={!canComplete || saving === 'complete'}
+                      variant={canCompleteOffboarding() ? 'default' : 'outline'}
+                      disabled={!canCompleteOffboarding() || saving === 'complete'}
                     >
                       {saving === 'complete' ? 'Completing...' : 'Complete Offboarding'}
                     </Button>
@@ -930,7 +957,7 @@ const OffboardingPage = () => {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Complete Offboarding?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will mark the offboarding process as complete and set the employee's status to Inactive. This action cannot be undone.
+                        This will mark the offboarding process as complete and set the employee's status to Inactive. The employee will no longer be able to login. This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
