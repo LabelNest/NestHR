@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Save } from 'lucide-react';
 import { TASK_CATEGORIES, type TaskCategory, type WorkLogTask } from '@/types/worklog';
+import { CategoryIcon } from './CategoryIcon';
 
 interface AddTaskFormProps {
   dateStr: string;
@@ -142,7 +143,7 @@ export const AddTaskForm = ({
               {TASK_CATEGORIES.map((cat) => (
                 <SelectItem key={cat.value} value={cat.value}>
                   <span className="flex items-center gap-2">
-                    <span>{cat.icon}</span>
+                    <CategoryIcon category={cat.value} size="sm" />
                     <span>{cat.label}</span>
                   </span>
                 </SelectItem>
