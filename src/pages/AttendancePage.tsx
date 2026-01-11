@@ -3,8 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { StatCard } from '@/components/shared/StatCard';
-import { Clock, LogIn, LogOut, Calendar as CalendarIcon, Loader2, List, CalendarDays } from 'lucide-react';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { Clock, LogIn, LogOut, Calendar as CalendarIcon, Loader2, List, CalendarDays, Palmtree } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, isSaturday, isSunday, isWeekend } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface AttendanceRecord {
   id: string;
@@ -100,13 +106,13 @@ const AttendancePage = () => {
       if (historyError) throw historyError;
       setAttendanceHistory(historyData || []);
 
-      // Calculate monthly hours from consolidated records
+      // Calculate monthly hours from consolidated records (excluding weekends)
       const monthStart = startOfMonth(new Date());
       const monthEnd = endOfMonth(new Date());
       
       const { data: monthData, error: monthError } = await supabase
         .from('hr_attendance')
-        .select('total_hours')
+        .select('total_hours, attendance_date')
         .eq('employee_id', employee.id)
         .eq('is_consolidated', true)
         .gte('attendance_date', format(monthStart, 'yyyy-MM-dd'))
@@ -114,10 +120,13 @@ const AttendancePage = () => {
 
       if (monthError) throw monthError;
       
-      const totalMonthHours = (monthData || []).reduce(
-        (sum, record) => sum + (record.total_hours || 0), 
-        0
-      );
+      // Only count weekday hours
+      const totalMonthHours = (monthData || [])
+        .filter(record => {
+          const date = new Date(record.attendance_date);
+          return !isWeekend(date);
+        })
+        .reduce((sum, record) => sum + (record.total_hours || 0), 0);
       setMonthlyHours(totalMonthHours);
 
     } catch (error: any) {
@@ -431,17 +440,29 @@ const AttendancePage = () => {
     return 'absent';
   };
 
-  // Stats calculations from consolidated records
-  const presentDays = attendanceHistory.filter(r => 
+  // Stats calculations - exclude weekends from history
+  const weekdayHistory = attendanceHistory.filter(r => {
+    const date = new Date(r.attendance_date);
+    return !isWeekend(date);
+  });
+  
+  const presentDays = weekdayHistory.filter(r => 
     r.status?.toLowerCase() === 'present'
   ).length;
-  const partialDays = attendanceHistory.filter(r => 
+  const partialDays = weekdayHistory.filter(r => 
     r.status?.toLowerCase() === 'half day' || r.status?.toLowerCase() === 'partial'
   ).length;
 
   // Calendar helper functions
-  const getDateStatus = (date: Date): 'present' | 'absent' | 'partial' | 'holiday' | 'leave' | null => {
+  const getDateStatus = (date: Date): 'present' | 'absent' | 'partial' | 'holiday' | 'leave' | 'weekend' | null => {
     const dateStr = format(date, 'yyyy-MM-dd');
+    const todayDate = new Date();
+    
+    // Future dates - no status
+    if (date > todayDate) return null;
+    
+    // Check if weekend
+    const isWeekendDay = isSaturday(date) || isSunday(date);
     
     // Check if holiday
     const holiday = monthHolidays.find(h => h.holiday_date === dateStr);
@@ -457,7 +478,30 @@ const AttendancePage = () => {
       if (status === 'leave' || status === 'on_leave') return 'leave';
     }
     
-    return null;
+    // If weekend with no attendance record, show as weekend (not absent)
+    if (isWeekendDay) return 'weekend';
+    
+    // Weekday with no record = absent
+    return 'absent';
+  };
+
+  const getHolidayName = (date: Date): string | null => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const holiday = monthHolidays.find(h => h.holiday_date === dateStr);
+    return holiday?.holiday_name || null;
+  };
+
+  const getTooltipText = (date: Date): string => {
+    const status = getDateStatus(date);
+    const holidayName = getHolidayName(date);
+    
+    if (holidayName) return `Holiday: ${holidayName}`;
+    if (status === 'weekend') return 'Non-Working Day (Weekend)';
+    if (status === 'present') return 'Present';
+    if (status === 'partial') return 'Half Day';
+    if (status === 'absent') return 'Absent';
+    if (status === 'leave') return 'On Leave';
+    return '';
   };
 
   if (loading) {
@@ -494,7 +538,7 @@ const AttendancePage = () => {
         />
         <StatCard 
           title="Avg Hours/Day" 
-          value={attendanceHistory.length > 0 
+          value={weekdayHistory.length > 0 
             ? `${(monthlyHours / Math.max(presentDays + partialDays, 1)).toFixed(1)}h` 
             : '--'} 
           icon={Clock}
@@ -705,31 +749,41 @@ const AttendancePage = () => {
                     <div className="w-4 h-4 rounded bg-purple-100 dark:bg-purple-900/40 border border-purple-200"></div>
                     <span className="text-sm">On Leave</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-slate-200 dark:bg-slate-700/40 border border-slate-300 flex items-center justify-center">
+                      <Palmtree className="h-2.5 w-2.5 text-slate-500" />
+                    </div>
+                    <span className="text-sm">Weekend</span>
+                  </div>
                 </div>
               </Card>
 
               {/* Calendar */}
               <div className="flex-1">
-                <Calendar
-                  mode="single"
-                  month={calendarMonth}
-                  onMonthChange={setCalendarMonth}
-                  className="pointer-events-auto"
-                  modifiers={{
-                    present: (date) => getDateStatus(date) === 'present',
-                    absent: (date) => getDateStatus(date) === 'absent',
-                    partial: (date) => getDateStatus(date) === 'partial',
-                    holiday: (date) => getDateStatus(date) === 'holiday',
-                    leave: (date) => getDateStatus(date) === 'leave',
-                  }}
-                  modifiersClassNames={{
-                    present: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
-                    absent: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200',
-                    partial: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200',
-                    holiday: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200',
-                    leave: 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200',
-                  }}
-                />
+                <TooltipProvider>
+                  <Calendar
+                    mode="single"
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    className="pointer-events-auto"
+                    modifiers={{
+                      present: (date) => getDateStatus(date) === 'present',
+                      absent: (date) => getDateStatus(date) === 'absent',
+                      partial: (date) => getDateStatus(date) === 'partial',
+                      holiday: (date) => getDateStatus(date) === 'holiday',
+                      leave: (date) => getDateStatus(date) === 'leave',
+                      weekend: (date) => getDateStatus(date) === 'weekend',
+                    }}
+                    modifiersClassNames={{
+                      present: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
+                      absent: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200',
+                      partial: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200',
+                      holiday: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200',
+                      leave: 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200',
+                      weekend: 'bg-slate-200 dark:bg-slate-700/40 text-slate-500 dark:text-slate-400',
+                    }}
+                  />
+                </TooltipProvider>
               </div>
             </div>
           </TabsContent>

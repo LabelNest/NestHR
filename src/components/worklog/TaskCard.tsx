@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit2, Trash2, Copy, ChevronDown, ChevronUp } from 'lucide-react';
-import { getCategoryIcon, type WorkLogTask } from '@/types/worklog';
+import { Edit2, Trash2, Copy, ChevronDown, ChevronUp, User, Briefcase, Shield, Users } from 'lucide-react';
+import { type WorkLogTask, getAssignmentBadgeConfig } from '@/types/worklog';
+import { CategoryIcon } from './CategoryIcon';
 import { cn } from '@/lib/utils';
 
 interface TaskCardProps {
   task: WorkLogTask;
   isEditable: boolean;
+  currentManagerId?: string;
   onEdit: (task: WorkLogTask) => void;
   onDelete: (taskId: string) => void;
   onDuplicate: (task: WorkLogTask) => void;
@@ -20,10 +22,28 @@ const formatDuration = (minutes: number): string => {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
-export const TaskCard = ({ task, isEditable, onEdit, onDelete, onDuplicate }: TaskCardProps) => {
+const AssignmentIcon = ({ type }: { type: string }) => {
+  switch (type) {
+    case 'Self':
+      return <User className="h-3 w-3" />;
+    case 'Manager':
+      return <Briefcase className="h-3 w-3" />;
+    case 'Admin':
+      return <Shield className="h-3 w-3" />;
+    case 'Employee':
+      return <Users className="h-3 w-3" />;
+    default:
+      return <User className="h-3 w-3" />;
+  }
+};
+
+export const TaskCard = ({ task, isEditable, currentManagerId, onEdit, onDelete, onDuplicate }: TaskCardProps) => {
   const [expanded, setExpanded] = useState(false);
   const hasDescription = task.description && task.description.length > 0;
   const hasReworkComment = task.rework_comment && task.rework_comment.length > 0;
+
+  const isCurrentManager = currentManagerId === task.assigned_by_id;
+  const assignmentConfig = getAssignmentBadgeConfig(task.assigned_by_type, isCurrentManager);
 
   return (
     <div 
@@ -34,24 +54,32 @@ export const TaskCard = ({ task, isEditable, onEdit, onDelete, onDuplicate }: Ta
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="text-xl flex-shrink-0">{getCategoryIcon(task.category)}</span>
+          <div className="p-1.5 rounded-md bg-muted flex-shrink-0">
+            <CategoryIcon category={task.category} size="md" />
+          </div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium truncate">{task.task_title}</span>
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs font-mono">
                 {formatDuration(task.duration_minutes)}
               </Badge>
             </div>
             
-            <div className="text-xs text-muted-foreground mt-1">
-              <span className="capitalize">{task.category}</span>
-              {task.assigned_by_type !== 'Self' && task.assigned_by && (
-                <span> • Assigned by: {task.assigned_by.full_name}</span>
-              )}
-              {task.assigned_by_type === 'Self' && (
-                <span> • Self-assigned</span>
-              )}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-xs text-muted-foreground capitalize">{task.category}</span>
+              <span className="text-xs text-muted-foreground">•</span>
+              <Badge variant="outline" className={cn("text-xs px-1.5 py-0 h-5 gap-1", assignmentConfig.className)}>
+                <AssignmentIcon type={task.assigned_by_type} />
+                {task.assigned_by_type === 'Self' 
+                  ? 'Self-assigned' 
+                  : isCurrentManager 
+                    ? 'Assigned by you' 
+                    : task.assigned_by?.full_name 
+                      ? `${assignmentConfig.label}: ${task.assigned_by.full_name}`
+                      : assignmentConfig.label
+                }
+              </Badge>
             </div>
 
             {hasDescription && (

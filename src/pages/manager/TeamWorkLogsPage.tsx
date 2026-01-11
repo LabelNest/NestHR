@@ -38,7 +38,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { getCategoryIcon, type TaskCategory, type WorkLogTask, type WorkLogWeek } from '@/types/worklog';
+import { getCategoryConfig, getAssignmentBadgeConfig, type TaskCategory, type WorkLogTask, type WorkLogWeek } from '@/types/worklog';
+import { CategoryIcon } from '@/components/worklog/CategoryIcon';
 
 interface TeamMember {
   id: string;
@@ -658,22 +659,42 @@ const TeamWorkLogsPage = () => {
                           
                           {day.tasks.length > 0 ? (
                             <div className="space-y-2">
-                              {day.tasks.map(task => (
-                                <div key={task.id} className="flex items-start gap-2 text-sm">
-                                  <span>{getCategoryIcon(task.category)}</span>
-                                  <div className="flex-1">
-                                    <span className="font-medium">{task.task_title}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      {formatMinutes(task.duration_minutes)}
-                                    </span>
-                                    {task.description && (
-                                      <p className="text-muted-foreground text-xs mt-1 line-clamp-2">
-                                        {task.description}
-                                      </p>
-                                    )}
+                              {day.tasks.map(task => {
+                                const isCurrentManager = employee?.id === task.assigned_by_id;
+                                const assignmentConfig = getAssignmentBadgeConfig(task.assigned_by_type, isCurrentManager);
+                                return (
+                                  <div key={task.id} className="flex items-start gap-2 text-sm p-2 bg-muted/30 rounded">
+                                    <div className="p-1 rounded bg-muted">
+                                      <CategoryIcon category={task.category} size="sm" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-medium">{task.task_title}</span>
+                                        <span className="text-muted-foreground font-mono text-xs">
+                                          {formatMinutes(task.duration_minutes)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1 text-xs">
+                                        <span className={`px-1.5 py-0.5 rounded ${assignmentConfig.className}`}>
+                                          {task.assigned_by_type === 'Self' 
+                                            ? 'Self-assigned' 
+                                            : isCurrentManager 
+                                              ? 'Assigned by you' 
+                                              : task.assigned_by?.full_name 
+                                                ? `${assignmentConfig.label}: ${task.assigned_by.full_name}`
+                                                : assignmentConfig.label
+                                          }
+                                        </span>
+                                      </div>
+                                      {task.description && (
+                                        <p className="text-muted-foreground text-xs mt-1 line-clamp-2">
+                                          {task.description}
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <p className="text-sm text-muted-foreground">No entries</p>

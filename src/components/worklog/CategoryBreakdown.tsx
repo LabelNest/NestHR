@@ -1,4 +1,5 @@
-import { getCategoryIcon, type TaskCategory } from '@/types/worklog';
+import { getCategoryConfig, type TaskCategory } from '@/types/worklog';
+import { CategoryIcon } from './CategoryIcon';
 
 interface CategoryBreakdownProps {
   breakdown: Record<TaskCategory, number>;
@@ -26,17 +27,20 @@ export const CategoryBreakdown = ({ breakdown }: CategoryBreakdownProps) => {
       <div className="space-y-2">
         {entries.map(([category, minutes]) => {
           const percentage = (minutes / total) * 100;
+          const config = getCategoryConfig(category);
           return (
             <div key={category} className="flex items-center gap-3">
-              <span className="text-lg">{getCategoryIcon(category)}</span>
+              <div className="p-1 rounded bg-muted">
+                <CategoryIcon category={category} size="sm" />
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="truncate">{category}</span>
-                  <span className="text-muted-foreground">{formatDuration(minutes)}</span>
+                  <span className="text-muted-foreground font-mono">{formatDuration(minutes)}</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-1.5">
                   <div 
-                    className="bg-primary h-1.5 rounded-full transition-all"
+                    className={`h-1.5 rounded-full transition-all ${config.color.replace('text-', 'bg-')}`}
                     style={{ width: `${percentage}%` }}
                   />
                 </div>

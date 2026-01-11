@@ -1,4 +1,5 @@
 // Work Log Types
+import { LucideIcon, Calendar, Code, Bug, BookOpen, FileText, Palette, Search, BarChart3, Mail, Target } from 'lucide-react';
 
 export interface WorkLogWeek {
   id: string;
@@ -47,21 +48,21 @@ export type TaskCategory =
   | 'Admin' 
   | 'Other';
 
-export const TASK_CATEGORIES: { value: TaskCategory; label: string; icon: string }[] = [
-  { value: 'Meeting', label: 'Meeting', icon: '📅' },
-  { value: 'Development', label: 'Development', icon: '💻' },
-  { value: 'Support', label: 'Support', icon: '🐛' },
-  { value: 'Learning', label: 'Learning', icon: '📚' },
-  { value: 'Documentation', label: 'Documentation', icon: '📝' },
-  { value: 'Design', label: 'Design', icon: '🎨' },
-  { value: 'Review', label: 'Review', icon: '🔍' },
-  { value: 'Planning', label: 'Planning', icon: '📊' },
-  { value: 'Admin', label: 'Admin', icon: '📧' },
-  { value: 'Other', label: 'Other', icon: '🎯' },
+export const TASK_CATEGORIES: { value: TaskCategory; label: string; icon: LucideIcon; color: string }[] = [
+  { value: 'Meeting', label: 'Meeting', icon: Calendar, color: 'text-blue-500' },
+  { value: 'Development', label: 'Development', icon: Code, color: 'text-emerald-500' },
+  { value: 'Support', label: 'Support', icon: Bug, color: 'text-red-500' },
+  { value: 'Learning', label: 'Learning', icon: BookOpen, color: 'text-purple-500' },
+  { value: 'Documentation', label: 'Documentation', icon: FileText, color: 'text-amber-500' },
+  { value: 'Design', label: 'Design', icon: Palette, color: 'text-pink-500' },
+  { value: 'Review', label: 'Review', icon: Search, color: 'text-cyan-500' },
+  { value: 'Planning', label: 'Planning', icon: BarChart3, color: 'text-indigo-500' },
+  { value: 'Admin', label: 'Admin', icon: Mail, color: 'text-slate-500' },
+  { value: 'Other', label: 'Other', icon: Target, color: 'text-gray-500' },
 ];
 
-export const getCategoryIcon = (category: TaskCategory): string => {
-  return TASK_CATEGORIES.find(c => c.value === category)?.icon || '🎯';
+export const getCategoryConfig = (category: TaskCategory) => {
+  return TASK_CATEGORIES.find(c => c.value === category) || TASK_CATEGORIES[TASK_CATEGORIES.length - 1];
 };
 
 export interface DayTasks {
@@ -80,3 +81,24 @@ export interface WeekSummary {
   categoryBreakdown: Record<TaskCategory, number>;
   daysWithEntries: number;
 }
+
+// Assignment type helpers
+export type AssignmentType = 'Self' | 'Employee' | 'Manager' | 'Admin';
+
+export const getAssignmentBadgeConfig = (type: AssignmentType, isCurrentManager: boolean = false) => {
+  switch (type) {
+    case 'Self':
+      return { label: 'Self', className: 'bg-muted text-muted-foreground' };
+    case 'Manager':
+      return { 
+        label: isCurrentManager ? 'You' : 'Manager', 
+        className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+      };
+    case 'Admin':
+      return { label: 'Admin', className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
+    case 'Employee':
+      return { label: 'Team', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+    default:
+      return { label: type, className: 'bg-muted text-muted-foreground' };
+  }
+};
